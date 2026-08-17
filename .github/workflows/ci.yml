@@ -50,6 +50,8 @@ jobs:
       terraform-working-directories: modules/repos
       terraform-version: latest
       merged-pr-branch-prefix: ${{ startswith(github.head_ref, 'dependabot/terraform/') && 'dependabot/terraform/' || null }}
+      merge-pr-head-branch-prefix: ${{ startswith(github.head_ref, 'dependabot/terraform/') && 'dependabot/terraform/' || 'renovate/' }}
+      merge-pr-author-allowlist: ${{ startswith(github.head_ref, 'dependabot/terraform/') && 'dependabot[bot]' || 'renovate[bot]' }}
       search-path-for-lint-and-scan: .
       merge-pr: ${{ github.event_name == 'pull_request' }}
     secrets:

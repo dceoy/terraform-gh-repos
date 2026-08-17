@@ -9,7 +9,7 @@ variable "repositories" {
   type = map(object({
     description            = optional(string, "")
     homepage_url           = optional(string)
-    visibility             = optional(string, "public")
+    visibility             = string
     topics                 = optional(set(string), [])
     has_issues             = optional(bool, true)
     has_discussions        = optional(bool, false)

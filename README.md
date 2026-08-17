@@ -62,6 +62,7 @@ Add repositories explicitly to `modules/repos/repositories.auto.tfvars`:
 repositories = {
   "terraform-gh-repos" = {
     description     = "Manage GitHub repositories with Terraform"
+    visibility      = "public"
     import_existing = true
 
     ruleset = {
@@ -72,6 +73,8 @@ repositories = {
 ```
 
 Existing repositories default to `import_existing = true`. Set it to `false` when Terraform should create a new repository.
+
+Set `visibility` explicitly for every inventory entry, including repositories being imported, to avoid changing a private repository's visibility unintentionally.
 
 The default repository policy enables Issues, squash/rebase merging, auto-merge, branch updates, deletion of merged branches, and vulnerability alerts. Repository rulesets are opt-in and, when enabled, protect the default branch from deletion and force pushes, require linear history, and require changes through pull requests with zero mandatory approvals.
 
