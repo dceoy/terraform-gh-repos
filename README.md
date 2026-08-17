@@ -31,6 +31,7 @@ Terraform manages only repositories declared in `modules/repos/repositories.auto
 │       └── ci.yml
 └── modules/
     └── repos/
+        ├── .terraform.lock.hcl
         ├── imports.tf
         ├── locals.tf
         ├── main.tf

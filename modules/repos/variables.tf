@@ -13,7 +13,7 @@ variable "github_app_auth" {
 variable "repositories" {
   description = "Repositories managed by this Terraform configuration."
   type = map(object({
-    description           = optional(string, "")
+    description            = optional(string, "")
     homepage_url           = optional(string)
     visibility             = optional(string, "public")
     topics                 = optional(set(string), [])

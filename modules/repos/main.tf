@@ -1,4 +1,5 @@
 resource "github_repository" "this" {
+  #checkov:skip=CKV_GIT_1:Managed repositories may intentionally be public; visibility is configurable.
   for_each = var.repositories
 
   name                   = each.key
