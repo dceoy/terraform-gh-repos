@@ -24,7 +24,7 @@ jobs:
       || (
         github.event_name == 'pull_request'
         && (! startswith(github.head_ref, 'dependabot/terraform/'))
-        && (! startswith(github.head_ref, 'renovate/'))
+        && (! startswith(github.head_ref, 'renovate/terraform-'))
       ) || (github.event_name == 'workflow_dispatch' && inputs.workflow == 'lint-and-scan')
     permissions:
       contents: write
@@ -38,7 +38,7 @@ jobs:
     if: >
       (
         github.event_name == 'pull_request'
-        && (startswith(github.head_ref, 'dependabot/terraform/') || startswith(github.head_ref, 'renovate/'))
+        && (startswith(github.head_ref, 'dependabot/terraform/') || startswith(github.head_ref, 'renovate/terraform-'))
       ) || (github.event_name == 'workflow_dispatch' && inputs.workflow == 'upgrade')
     permissions:
       contents: write
@@ -50,7 +50,7 @@ jobs:
       terraform-working-directories: modules/repos
       terraform-version: latest
       merged-pr-branch-prefix: ${{ startswith(github.head_ref, 'dependabot/terraform/') && 'dependabot/terraform/' || null }}
-      merge-pr-head-branch-prefix: ${{ startswith(github.head_ref, 'dependabot/terraform/') && 'dependabot/terraform/' || 'renovate/' }}
+      merge-pr-head-branch-prefix: ${{ startswith(github.head_ref, 'dependabot/terraform/') && 'dependabot/terraform/' || 'renovate/terraform-' }}
       merge-pr-author-allowlist: ${{ startswith(github.head_ref, 'dependabot/terraform/') && 'dependabot[bot]' || 'renovate[bot]' }}
       search-path-for-lint-and-scan: .
       merge-pr: ${{ github.event_name == 'pull_request' }}
