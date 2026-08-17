@@ -16,6 +16,9 @@ crash.*.log
 *.tfvars
 *.tfvars.json
 
+# The repository inventory contains no credentials and is intentionally tracked.
+!modules/repos/repositories.auto.tfvars
+
 # Ignore override files as they are usually used to override resources locally and so
 # are not checked in
 override.tf
