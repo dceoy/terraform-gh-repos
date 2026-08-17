@@ -26,7 +26,6 @@ Terraform manages only repositories declared in `modules/repos/repositories.auto
 ├── .github/
 │   ├── CODEOWNERS
 │   ├── dependabot.yml
-│   ├── renovate.json
 │   └── workflows/
 │       └── ci.yml
 └── modules/
@@ -51,6 +50,8 @@ Create a VCS-driven workspace with:
 - Execution mode: Remote
 
 Store GitHub credentials as sensitive workspace environment variables. The provider uses GitHub App authentication when `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and `GITHUB_APP_PEM_FILE` are configured; otherwise it uses `GITHUB_TOKEN` or the provider's normal token/CLI authentication.
+
+For GitHub App authentication, grant the app repository `Administration: Read and write` and `Contents: Read and write` permissions. Administration covers repository settings, rulesets, and vulnerability alerts; Contents is required for merge-setting reconciliation.
 
 Do not set `GITHUB_OWNER`; the owner is configured by the Terraform variable `github_owner`.
 
