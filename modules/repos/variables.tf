@@ -4,12 +4,6 @@ variable "github_owner" {
   default     = "dceoy"
 }
 
-variable "github_app_auth" {
-  description = "Use GitHub App authentication from GITHUB_APP_* environment variables instead of token/CLI authentication."
-  type        = bool
-  default     = false
-}
-
 variable "repositories" {
   description = "Repositories managed by this Terraform configuration."
   type = map(object({

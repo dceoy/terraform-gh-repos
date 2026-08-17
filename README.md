@@ -50,7 +50,7 @@ Create a VCS-driven workspace with:
 - Terraform working directory: `modules/repos`
 - Execution mode: Remote
 
-Store GitHub credentials as sensitive workspace environment variables. The default provider configuration uses `GITHUB_TOKEN`. To use GitHub App authentication instead, set the Terraform variable `github_app_auth` to `true` and configure `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and `GITHUB_APP_PEM_FILE`.
+Store GitHub credentials as sensitive workspace environment variables. The provider uses GitHub App authentication when `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and `GITHUB_APP_PEM_FILE` are configured; otherwise it uses `GITHUB_TOKEN` or the provider's normal token/CLI authentication.
 
 Do not set `GITHUB_OWNER`; the owner is configured by the Terraform variable `github_owner`.
 
