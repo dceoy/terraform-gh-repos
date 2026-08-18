@@ -17,7 +17,7 @@ HCP Terraform
 GitHub API
 ```
 
-Terraform manages only repositories declared in `modules/repos/repositories.auto.tfvars`. The inventory is empty by default so adopting this repository does not change existing GitHub repositories.
+Terraform manages only repositories declared in `modules/repos/repositories.auto.tfvars`. By default the inventory declares only this `terraform-gh-repos` repository itself (imported via `import_existing = true`), so adopting this repository does not change any other existing GitHub repositories.
 
 ## Layout
 
