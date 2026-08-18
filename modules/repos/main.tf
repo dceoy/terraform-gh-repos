@@ -1,5 +1,6 @@
 resource "github_repository" "this" {
   #checkov:skip=CKV_GIT_1:Managed repositories may intentionally be public; visibility is configurable.
+  #checkov:skip=CKV2_GIT_1:Ruleset-based branch protection is opt-in per repository via the `ruleset.enabled` variable and reviewed separately from initial adoption.
   for_each = var.repositories
 
   name                   = each.key
