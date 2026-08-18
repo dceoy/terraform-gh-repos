@@ -19,7 +19,8 @@ repositories = {
     import_existing = true
 
     ruleset = {
-      enabled = false
+      enabled = true
+      id      = 20934253
     }
   }
 }

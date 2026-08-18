@@ -62,15 +62,16 @@ repositories = {
 
     ruleset = {
       enabled = true
+      id      = 20934253
     }
   }
 }
 ```
 
-Existing repositories default to `import_existing = true`. Set it to `false` when Terraform should create a new repository.
+Existing repositories default to `import_existing = true`. Set it to `false` when Terraform should create a new repository. For an existing ruleset, set `ruleset.id` so Terraform imports it instead of creating a second ruleset.
 
 Set `visibility` explicitly for every inventory entry, including repositories being imported, to avoid changing a private repository's visibility unintentionally.
 
-The default repository policy enables Issues, squash/rebase merging, auto-merge, branch updates, deletion of merged branches, and vulnerability alerts. Repository rulesets are opt-in and, when enabled, protect the default branch from deletion and force pushes, require linear history, and require changes through pull requests with zero mandatory approvals.
+The default repository policy enables Issues, Projects, Wiki, merge/squash/rebase merging, auto-merge, branch updates, deletion of merged branches, and vulnerability alerts. Repository rulesets are enabled by default and protect the default branch from deletion and force pushes, require changes through pull requests with zero mandatory approvals, allow merge/squash/rebase, and do not require linear history or review-thread resolution.
 
 Review the HCP Terraform plan before applying when first importing an existing repository because Terraform will reconcile its current GitHub settings with the declared policy.
