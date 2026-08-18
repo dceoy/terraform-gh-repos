@@ -4,6 +4,27 @@ variable "github_owner" {
   default     = "dceoy"
 }
 
+variable "github_app_id" {
+  description = "GitHub App ID used for provider authentication. Leave unset to use GITHUB_TOKEN or the provider's normal token/CLI authentication instead."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "github_app_installation_id" {
+  description = "GitHub App installation ID used for provider authentication. Leave unset to use GITHUB_TOKEN or the provider's normal token/CLI authentication instead."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
+variable "github_app_pem_file" {
+  description = "GitHub App private key (PEM contents) used for provider authentication. Leave unset to use GITHUB_TOKEN or the provider's normal token/CLI authentication instead."
+  type        = string
+  default     = null
+  sensitive   = true
+}
+
 variable "repositories" {
   description = "Repositories managed by this Terraform configuration."
   type = map(object({
