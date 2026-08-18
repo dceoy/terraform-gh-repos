@@ -28,23 +28,25 @@ variable "github_app_pem_file" {
 variable "repositories" {
   description = "Repositories managed by this Terraform configuration."
   type = map(object({
-    description            = optional(string, "")
-    homepage_url           = optional(string)
-    visibility             = string
-    topics                 = optional(set(string), [])
-    has_issues             = optional(bool, true)
-    has_discussions        = optional(bool, false)
-    has_projects           = optional(bool, true)
-    has_wiki               = optional(bool, true)
-    allow_merge_commit     = optional(bool, true)
-    allow_squash_merge     = optional(bool, true)
-    allow_rebase_merge     = optional(bool, true)
-    allow_auto_merge       = optional(bool, true)
-    allow_update_branch    = optional(bool, true)
-    delete_branch_on_merge = optional(bool, true)
-    archived               = optional(bool, false)
-    vulnerability_alerts   = optional(bool, true)
-    import_existing        = optional(bool, true)
+    description                      = optional(string, "")
+    homepage_url                     = optional(string)
+    visibility                       = string
+    topics                           = optional(set(string), [])
+    has_issues                       = optional(bool, true)
+    has_discussions                  = optional(bool, false)
+    has_projects                     = optional(bool, true)
+    has_wiki                         = optional(bool, true)
+    allow_merge_commit               = optional(bool, true)
+    allow_squash_merge               = optional(bool, true)
+    allow_rebase_merge               = optional(bool, true)
+    allow_auto_merge                 = optional(bool, true)
+    allow_update_branch              = optional(bool, true)
+    delete_branch_on_merge           = optional(bool, true)
+    default_workflow_permissions     = optional(string, "write")
+    can_approve_pull_request_reviews = optional(bool, true)
+    archived                         = optional(bool, false)
+    vulnerability_alerts             = optional(bool, true)
+    import_existing                  = optional(bool, true)
 
     ruleset = optional(object({
       enabled                           = optional(bool, true)
@@ -70,6 +72,14 @@ variable "repositories" {
       contains(["public", "private"], repo.visibility)
     ])
     error_message = "Repository visibility must be public or private."
+  }
+
+  validation {
+    condition = alltrue([
+      for repo in values(var.repositories) :
+      contains(["read", "write"], repo.default_workflow_permissions)
+    ])
+    error_message = "Default workflow permissions must be read or write."
   }
 
   validation {

@@ -32,6 +32,14 @@ resource "github_repository_vulnerability_alerts" "this" {
   enabled    = each.value.vulnerability_alerts
 }
 
+resource "github_workflow_repository_permissions" "this" {
+  for_each = local.active_repositories
+
+  repository                       = github_repository.this[each.key].name
+  default_workflow_permissions     = each.value.default_workflow_permissions
+  can_approve_pull_request_reviews = each.value.can_approve_pull_request_reviews
+}
+
 resource "github_repository_ruleset" "default_branch" {
   for_each = local.ruleset_repositories
 
