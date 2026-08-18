@@ -38,6 +38,10 @@ resource "github_workflow_repository_permissions" "this" {
   repository                       = github_repository.this[each.key].name
   default_workflow_permissions     = each.value.default_workflow_permissions
   can_approve_pull_request_reviews = each.value.can_approve_pull_request_reviews
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }
 
 resource "github_repository_ruleset" "default_branch" {
