@@ -15,11 +15,15 @@ repositories = {
     allow_update_branch    = true
     delete_branch_on_merge = true
 
+    default_workflow_permissions     = "write"
+    can_approve_pull_request_reviews = true
+
     archived        = false
     import_existing = true
 
     ruleset = {
-      enabled = false
+      enabled = true
+      id      = 20934253
     }
   }
 }

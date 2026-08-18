@@ -1,6 +1,6 @@
 resource "github_repository" "this" {
   #checkov:skip=CKV_GIT_1:Managed repositories may intentionally be public; visibility is configurable.
-  #checkov:skip=CKV2_GIT_1:This skip applies to the whole for_each'd resource block, i.e. every current and future entry in `repositories`, not only this adoption's repository. Ruleset-based branch protection is opt-in per repository via the `ruleset.enabled` variable (default false); reviewers must confirm each new entry's ruleset intent manually since Checkov cannot flag missing rulesets here.
+  #checkov:skip=CKV2_GIT_1:This skip applies to the whole for_each'd resource block, i.e. every current and future entry in `repositories`. Ruleset-based branch protection is enabled by default and can be disabled per repository via `ruleset.enabled`; reviewers must confirm intentional opt-outs manually since Checkov cannot flag disabled rulesets here.
   for_each = var.repositories
 
   name                   = each.key
@@ -32,10 +32,18 @@ resource "github_repository_vulnerability_alerts" "this" {
   enabled    = each.value.vulnerability_alerts
 }
 
+resource "github_workflow_repository_permissions" "this" {
+  for_each = local.active_repositories
+
+  repository                       = github_repository.this[each.key].name
+  default_workflow_permissions     = each.value.default_workflow_permissions
+  can_approve_pull_request_reviews = each.value.can_approve_pull_request_reviews
+}
+
 resource "github_repository_ruleset" "default_branch" {
   for_each = local.ruleset_repositories
 
-  name        = "default-branch"
+  name        = "branch-protection"
   repository  = github_repository.this[each.key].name
   target      = "branch"
   enforcement = each.value.ruleset.enforcement

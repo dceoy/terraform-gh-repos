@@ -45,7 +45,7 @@ Create a VCS-driven workspace with:
 
 Store GitHub App credentials as sensitive Terraform variables on the workspace: `github_app_id`, `github_app_installation_id`, and `github_app_pem_file` (the PEM file contents, including newlines). The provider uses GitHub App authentication only when all three are set; otherwise it uses `GITHUB_TOKEN` or the provider's normal token/CLI authentication. These must be Terraform variables, not environment variables — the module reads them itself and passes them into the `github` provider's `app_auth` block.
 
-For GitHub App authentication, grant the app repository `Administration: Read and write` and `Contents: Read and write` permissions. Administration covers repository settings, rulesets, and vulnerability alerts; Contents is required for merge-setting reconciliation.
+For GitHub App authentication, grant the app repository `Administration: Read and write` and `Contents: Read and write` permissions. Administration covers repository settings, rulesets, vulnerability alerts, and workflow-permission reconciliation; Contents is required for merge-setting reconciliation.
 
 Do not set `GITHUB_OWNER`; the owner is configured by the Terraform variable `github_owner`.
 
@@ -62,15 +62,16 @@ repositories = {
 
     ruleset = {
       enabled = true
+      id      = 20934253
     }
   }
 }
 ```
 
-Existing repositories default to `import_existing = true`. Set it to `false` when Terraform should create a new repository.
+Existing repositories default to `import_existing = true`. Set it to `false` when Terraform should create a new repository. Existing repository workflow permissions are imported automatically; for an existing ruleset, set `ruleset.id` so Terraform imports it instead of creating a second ruleset.
 
 Set `visibility` explicitly for every inventory entry, including repositories being imported, to avoid changing a private repository's visibility unintentionally.
 
-The default repository policy enables Issues, squash/rebase merging, auto-merge, branch updates, deletion of merged branches, and vulnerability alerts. Repository rulesets are opt-in and, when enabled, protect the default branch from deletion and force pushes, require linear history, and require changes through pull requests with zero mandatory approvals.
+The default repository policy enables Issues, Projects, Wiki, merge/squash/rebase merging, auto-merge, branch updates, deletion of merged branches, and vulnerability alerts. It grants read and write permissions to the default `GITHUB_TOKEN` and allows GitHub Actions to approve pull requests. Repository rulesets are enabled by default and protect the default branch from deletion and force pushes, require changes through pull requests with zero mandatory approvals, allow merge/squash/rebase, and do not require linear history or review-thread resolution.
 
 Review the HCP Terraform plan before applying when first importing an existing repository because Terraform will reconcile its current GitHub settings with the declared policy.
