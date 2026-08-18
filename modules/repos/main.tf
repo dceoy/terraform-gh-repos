@@ -1,5 +1,6 @@
 resource "github_repository" "this" {
   #checkov:skip=CKV_GIT_1:Managed repositories may intentionally be public; visibility is configurable.
+  #checkov:skip=CKV2_GIT_1:This skip applies to the whole for_each'd resource block, i.e. every current and future entry in `repositories`, not only this adoption's repository. Ruleset-based branch protection is opt-in per repository via the `ruleset.enabled` variable (default false); reviewers must confirm each new entry's ruleset intent manually since Checkov cannot flag missing rulesets here.
   for_each = var.repositories
 
   name                   = each.key

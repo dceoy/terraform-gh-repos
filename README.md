@@ -17,28 +17,22 @@ HCP Terraform
 GitHub API
 ```
 
-Terraform manages only repositories declared in `modules/repos/repositories.auto.tfvars`. The inventory is empty by default so adopting this repository does not change existing GitHub repositories.
+Terraform manages only repositories declared in `modules/repos/repositories.auto.tfvars`. By default the inventory declares only this `terraform-gh-repos` repository itself (imported via `import_existing = true`), so adopting this repository does not change any other existing GitHub repositories.
 
 ## Layout
 
 ```text
-.
-├── .github/
-│   ├── CODEOWNERS
-│   ├── dependabot.yml
-│   └── workflows/
-│       └── ci.yml
-└── modules/
-    └── repos/
-        ├── .terraform.lock.hcl
-        ├── imports.tf
-        ├── locals.tf
-        ├── main.tf
-        ├── outputs.tf
-        ├── provider.tf
-        ├── repositories.auto.tfvars
-        ├── variables.tf
-        └── version.tf
+modules/
+└── repos/
+    ├── .terraform.lock.hcl
+    ├── imports.tf
+    ├── locals.tf
+    ├── main.tf
+    ├── outputs.tf
+    ├── provider.tf
+    ├── repositories.auto.tfvars
+    ├── variables.tf
+    └── version.tf
 ```
 
 ## HCP Terraform
@@ -49,7 +43,7 @@ Create a VCS-driven workspace with:
 - Terraform working directory: `modules/repos`
 - Execution mode: Remote
 
-Store GitHub credentials as sensitive workspace environment variables. The provider uses GitHub App authentication when `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and `GITHUB_APP_PEM_FILE` are configured; otherwise it uses `GITHUB_TOKEN` or the provider's normal token/CLI authentication.
+Store GitHub App credentials as sensitive Terraform variables on the workspace: `github_app_id`, `github_app_installation_id`, and `github_app_pem_file` (the PEM file contents, including newlines). The provider uses GitHub App authentication only when all three are set; otherwise it uses `GITHUB_TOKEN` or the provider's normal token/CLI authentication. These must be Terraform variables, not environment variables — the module reads them itself and passes them into the `github` provider's `app_auth` block.
 
 For GitHub App authentication, grant the app repository `Administration: Read and write` and `Contents: Read and write` permissions. Administration covers repository settings, rulesets, and vulnerability alerts; Contents is required for merge-setting reconciliation.
 
