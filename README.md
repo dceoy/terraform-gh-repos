@@ -22,24 +22,17 @@ Terraform manages only repositories declared in `modules/repos/repositories.auto
 ## Layout
 
 ```text
-.
-├── .github/
-│   ├── CODEOWNERS
-│   ├── dependabot.yml
-│   └── workflows/
-│       ├── ci.yml
-│       └── claude.yml
-└── modules/
-    └── repos/
-        ├── .terraform.lock.hcl
-        ├── imports.tf
-        ├── locals.tf
-        ├── main.tf
-        ├── outputs.tf
-        ├── provider.tf
-        ├── repositories.auto.tfvars
-        ├── variables.tf
-        └── version.tf
+modules/
+└── repos/
+    ├── .terraform.lock.hcl
+    ├── imports.tf
+    ├── locals.tf
+    ├── main.tf
+    ├── outputs.tf
+    ├── provider.tf
+    ├── repositories.auto.tfvars
+    ├── variables.tf
+    └── version.tf
 ```
 
 ## HCP Terraform
@@ -55,10 +48,6 @@ Store GitHub App credentials as sensitive Terraform variables on the workspace: 
 For GitHub App authentication, grant the app repository `Administration: Read and write` and `Contents: Read and write` permissions. Administration covers repository settings, rulesets, and vulnerability alerts; Contents is required for merge-setting reconciliation.
 
 Do not set `GITHUB_OWNER`; the owner is configured by the Terraform variable `github_owner`.
-
-## Claude Code workflow
-
-`.github/workflows/claude.yml` runs the shared `dceoy/gha-for-devops` Claude Code review and mention-bot workflows. It requires a `CLAUDE_CODE_OAUTH_TOKEN` repository Actions secret.
 
 ## Repository inventory
 
