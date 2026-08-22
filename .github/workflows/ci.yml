@@ -17,6 +17,8 @@ on:
           - upgrade
         description: Choose the workflow to run
         default: lint-and-scan
+permissions:
+  contents: read
 jobs:
   terraform-lint-and-scan:
     if: >
@@ -32,7 +34,6 @@ jobs:
     uses: dceoy/gha-for-devops/.github/workflows/terraform-lint-and-scan.yml@main  # zizmor: ignore[unpinned-uses]
     with:
       search-path: .
-      terraform-version: latest
   terraform-lock-files-upgrade-and-pr-merge:
     if: >
       (
@@ -47,7 +48,6 @@ jobs:
     uses: dceoy/gha-for-devops/.github/workflows/terraform-lock-files-upgrade-and-pr-merge.yml@main  # zizmor: ignore[unpinned-uses]
     with:
       terraform-working-directories: modules/repos
-      terraform-version: latest
       merged-pr-branch-prefix: dependabot/terraform/
       merge-pr-head-branch-prefix: dependabot/terraform/
       merge-pr-author-allowlist: dependabot[bot]
