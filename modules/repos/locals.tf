@@ -18,9 +18,4 @@ locals {
     local.existing_public_repositories,
     local.new_public_repositories,
   )
-
-  ruleset_repositories = {
-    for name, repo in local.public_repositories : name => repo
-    if repo.ruleset.enabled
-  }
 }

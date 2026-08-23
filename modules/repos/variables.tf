@@ -44,24 +44,6 @@ variable "repositories" {
     vulnerability_alerts             = optional(bool, true)
     dependabot_security_updates      = optional(bool, true)
     import_existing                  = optional(bool, true)
-
-    ruleset = optional(object({
-      enabled                              = optional(bool, true)
-      id                                   = optional(number)
-      enforcement                          = optional(string, "active")
-      require_pull_request                 = optional(bool, true)
-      allowed_merge_methods                = optional(list(string), ["merge", "squash", "rebase"])
-      required_approving_review_count      = optional(number, 0)
-      dismiss_stale_reviews_on_push        = optional(bool, false)
-      require_code_owner_review            = optional(bool, false)
-      require_last_push_approval           = optional(bool, false)
-      required_review_thread_resolution    = optional(bool, true)
-      required_linear_history              = optional(bool, false)
-      prevent_deletion                     = optional(bool, true)
-      prevent_force_push                   = optional(bool, true)
-      required_status_checks               = optional(set(string), [])
-      strict_required_status_checks_policy = optional(bool, false)
-    }), {})
   }))
   default = {}
 
@@ -71,13 +53,5 @@ variable "repositories" {
       contains(["read", "write"], repo.default_workflow_permissions)
     ])
     error_message = "Default workflow permissions must be read or write."
-  }
-
-  validation {
-    condition = alltrue([
-      for repo in values(var.repositories) :
-      contains(["active", "disabled"], repo.ruleset.enforcement)
-    ])
-    error_message = "Repository ruleset enforcement must be active or disabled for a personal account."
   }
 }

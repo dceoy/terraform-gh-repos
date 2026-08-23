@@ -9,7 +9,7 @@ data "github_repository" "existing" {
 
 resource "github_repository" "this" {
   #checkov:skip=CKV_GIT_1:Managed repositories may intentionally be public; visibility is preserved from GitHub.
-  #checkov:skip=CKV2_GIT_1:Ruleset-based branch protection is applied to public repositories on GitHub Free and can be disabled per repository via `ruleset.enabled`.
+  #checkov:skip=CKV2_GIT_1:Ruleset-based branch protection is applied uniformly to public repositories supported by GitHub Free.
   for_each = var.repositories
 
   name                   = each.key
@@ -74,12 +74,12 @@ resource "github_workflow_repository_permissions" "this" {
 }
 
 resource "github_repository_ruleset" "default_branch" {
-  for_each = local.ruleset_repositories
+  for_each = local.public_repositories
 
   name        = "branch-protection"
   repository  = github_repository.this[each.key].name
   target      = "branch"
-  enforcement = each.value.ruleset.enforcement
+  enforcement = "active"
 
   conditions {
     ref_name {
@@ -89,37 +89,17 @@ resource "github_repository_ruleset" "default_branch" {
   }
 
   rules {
-    deletion                = each.value.ruleset.prevent_deletion
-    non_fast_forward        = each.value.ruleset.prevent_force_push
-    required_linear_history = each.value.ruleset.required_linear_history
+    deletion                = true
+    non_fast_forward        = true
+    required_linear_history = false
 
-    dynamic "pull_request" {
-      for_each = each.value.ruleset.require_pull_request ? [true] : []
-
-      content {
-        allowed_merge_methods             = each.value.ruleset.allowed_merge_methods
-        dismiss_stale_reviews_on_push     = each.value.ruleset.dismiss_stale_reviews_on_push
-        require_code_owner_review         = each.value.ruleset.require_code_owner_review
-        require_last_push_approval        = each.value.ruleset.require_last_push_approval
-        required_approving_review_count   = each.value.ruleset.required_approving_review_count
-        required_review_thread_resolution = each.value.ruleset.required_review_thread_resolution
-      }
-    }
-
-    dynamic "required_status_checks" {
-      for_each = length(each.value.ruleset.required_status_checks) > 0 ? [true] : []
-
-      content {
-        strict_required_status_checks_policy = each.value.ruleset.strict_required_status_checks_policy
-
-        dynamic "required_check" {
-          for_each = each.value.ruleset.required_status_checks
-
-          content {
-            context = required_check.value
-          }
-        }
-      }
+    pull_request {
+      allowed_merge_methods             = ["merge", "squash", "rebase"]
+      dismiss_stale_reviews_on_push     = false
+      require_code_owner_review         = false
+      require_last_push_approval        = false
+      required_approving_review_count   = 0
+      required_review_thread_resolution = true
     }
   }
 }

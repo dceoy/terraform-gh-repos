@@ -74,23 +74,19 @@ Add repositories explicitly to `modules/repos/repositories.auto.tfvars`:
 
 ```hcl
 repositories = {
-  "terraform-gh-repos" = {
-    import_existing = true
-
-    ruleset = {
-      enabled = true
-      id      = 20934253
-    }
-  }
+  "terraform-gh-repos" = {}
+  "another-public-repo" = {}
 }
 ```
 
-Existing repositories default to `import_existing = true`. Set it to `false` when Terraform should create a new repository. Existing repository workflow permissions are imported automatically; for an existing ruleset, set `ruleset.id` so Terraform imports it instead of creating a second ruleset.
+Existing repositories default to `import_existing = true`. Set it to `false` when Terraform should create a new repository. Existing repository workflow permissions are imported automatically.
 
 Repository descriptions and visibility are intentionally left unmanaged. Imported repositories retain their current values. Terraform reads the current visibility only to avoid configuring GitHub Free features that are unavailable on private personal repositories. Newly created repositories use GitHub's default public visibility.
 
 The default security policy applies Dependabot vulnerability alerts and security updates to active repositories, gives the default Actions `GITHUB_TOKEN` read-only permissions, and allows GitHub Actions to approve pull requests. Workflows that require write access must request it explicitly at workflow or job scope.
 
-For public repositories, where GitHub Free supports the features, Terraform also enables Code Security, secret scanning, secret-scanning push protection, and the default-branch ruleset. The ruleset prevents branch deletion and force pushes, requires changes through pull requests with zero mandatory approvals, requires review threads to be resolved, and supports optional required status checks. Private repositories on a GitHub Free personal account are excluded from ruleset and public-only security configuration.
+For public repositories, where GitHub Free supports the features, Terraform also enables Code Security, secret scanning, secret-scanning push protection, and one identical default-branch ruleset per repository. The common ruleset prevents branch deletion and force pushes, requires changes through pull requests with zero mandatory approvals, and requires review threads to be resolved. Private repositories on a GitHub Free personal account are excluded from ruleset and public-only security configuration.
+
+The pre-existing `terraform-gh-repos` ruleset (ID `20934253`) is imported declaratively in `imports.tf`; ruleset IDs and policy are not part of repository inventory. New public repositories receive the common ruleset automatically.
 
 Review the HCP Terraform plan before applying when first importing an existing repository because Terraform will reconcile its managed GitHub settings while leaving the repository description and visibility unchanged.

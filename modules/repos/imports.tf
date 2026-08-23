@@ -18,12 +18,8 @@ import {
   id = each.key
 }
 
+# Adopt the existing ruleset while moving ruleset policy out of repository inventory.
 import {
-  for_each = {
-    for name, repo in local.ruleset_repositories : name => repo
-    if repo.ruleset.id != null
-  }
-
-  to = github_repository_ruleset.default_branch[each.key]
-  id = "${each.key}:${each.value.ruleset.id}"
+  to = github_repository_ruleset.default_branch["terraform-gh-repos"]
+  id = "terraform-gh-repos:20934253"
 }
