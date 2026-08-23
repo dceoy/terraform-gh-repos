@@ -20,11 +20,11 @@ resource "github_repository" "this" {
   has_issues             = each.value.has_issues
   has_discussions        = each.value.has_discussions
   has_projects           = each.value.has_projects
-  has_wiki               = each.value.has_wiki
+  has_wiki               = data.github_repository.existing[each.key].visibility == "public" ? each.value.has_wiki : data.github_repository.existing[each.key].has_wiki
   allow_merge_commit     = each.value.allow_merge_commit
   allow_squash_merge     = each.value.allow_squash_merge
   allow_rebase_merge     = each.value.allow_rebase_merge
-  allow_auto_merge       = each.value.allow_auto_merge
+  allow_auto_merge       = data.github_repository.existing[each.key].visibility == "public" ? each.value.allow_auto_merge : data.github_repository.existing[each.key].allow_auto_merge
   allow_update_branch    = each.value.allow_update_branch
   delete_branch_on_merge = each.value.delete_branch_on_merge
 
