@@ -92,7 +92,7 @@ Existing repositories default to `import_existing = true`. Set it to `false` whe
 
 Repository descriptions and visibility are intentionally left unmanaged. Imported repositories retain their current values. Terraform reads the current visibility only to avoid configuring GitHub Free features that are unavailable on private personal repositories. Newly created repositories use GitHub's default public visibility.
 
-The default security policy applies Dependabot vulnerability alerts and security updates to active repositories, gives the default Actions `GITHUB_TOKEN` read-only permissions, and prevents Actions from approving pull requests. Workflows that require write access must request it explicitly at workflow or job scope.
+The default security policy applies Dependabot vulnerability alerts and security updates to active repositories, gives the default Actions `GITHUB_TOKEN` read-only permissions, and allows GitHub Actions to approve pull requests. Workflows that require write access must request it explicitly at workflow or job scope.
 
 For public repositories, where GitHub Free supports the features, Terraform also enables Code Security, secret scanning, secret-scanning push protection, and the default-branch ruleset. The ruleset prevents branch deletion and force pushes, requires changes through pull requests with zero mandatory approvals, requires review threads to be resolved, and can require configured status checks. Private repositories on a GitHub Free personal account are excluded from ruleset and public-only security configuration.
 
