@@ -24,7 +24,7 @@ variable "github_app_pem_file" {
 }
 
 variable "repositories" {
-  description = "Existing repositories managed by this Terraform configuration."
+  description = "Existing active repositories managed by this Terraform configuration."
   type = map(object({
     has_issues                       = optional(bool, true)
     has_discussions                  = optional(bool, false)
