@@ -49,4 +49,11 @@ variable "repositories" {
     ])
     error_message = "Default workflow permissions must be read or write."
   }
+  validation {
+    condition = alltrue([
+      for repo in values(var.repositories) :
+      !repo.dependabot_security_updates || repo.vulnerability_alerts
+    ])
+    error_message = "Dependabot security updates require vulnerability alerts to be enabled."
+  }
 }
