@@ -24,7 +24,7 @@ variable "github_app_pem_file" {
 }
 
 variable "repositories" {
-  description = "Repositories managed by this Terraform configuration."
+  description = "Existing repositories managed by this Terraform configuration."
   type = map(object({
     homepage_url                     = optional(string)
     topics                           = optional(set(string), [])
@@ -43,7 +43,6 @@ variable "repositories" {
     archived                         = optional(bool, false)
     vulnerability_alerts             = optional(bool, true)
     dependabot_security_updates      = optional(bool, true)
-    import_existing                  = optional(bool, true)
   }))
   default = {}
 
