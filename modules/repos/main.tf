@@ -16,20 +16,14 @@ data "github_rest_api" "workflow_repository_permissions" {
 resource "github_repository" "this" {
   #checkov:skip=CKV_GIT_1:Managed repositories may intentionally be public; visibility is preserved from GitHub.
   #checkov:skip=CKV2_GIT_1:Ruleset-based branch protection is applied uniformly to public repositories supported by GitHub Free.
-  for_each               = var.repositories
-  name                   = each.key
-  homepage_url           = local.repository_settings[each.key].homepage_url
-  topics                 = local.repository_settings[each.key].topics
-  has_issues             = local.repository_settings[each.key].has_issues
-  has_discussions        = local.repository_settings[each.key].has_discussions
-  has_projects           = local.repository_settings[each.key].has_projects
-  has_wiki               = local.repository_settings[each.key].has_wiki
-  allow_merge_commit     = local.repository_settings[each.key].allow_merge_commit
-  allow_squash_merge     = local.repository_settings[each.key].allow_squash_merge
-  allow_rebase_merge     = local.repository_settings[each.key].allow_rebase_merge
-  allow_auto_merge       = local.repository_settings[each.key].allow_auto_merge
-  allow_update_branch    = local.repository_settings[each.key].allow_update_branch
-  delete_branch_on_merge = local.repository_settings[each.key].delete_branch_on_merge
+  for_each        = var.repositories
+  name            = each.key
+  homepage_url    = local.repository_settings[each.key].homepage_url
+  topics          = local.repository_settings[each.key].topics
+  has_issues      = local.repository_settings[each.key].has_issues
+  has_discussions = local.repository_settings[each.key].has_discussions
+  has_projects    = local.repository_settings[each.key].has_projects
+  has_wiki        = local.repository_settings[each.key].has_wiki
   dynamic "security_and_analysis" {
     for_each = contains(keys(local.public_repositories), each.key) ? [true] : []
     content {
@@ -46,7 +40,24 @@ resource "github_repository" "this" {
   }
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [description, visibility, archived]
+    ignore_changes = [
+      description,
+      visibility,
+      archived,
+      allow_auto_merge,
+      allow_merge_commit,
+      allow_rebase_merge,
+      allow_squash_merge,
+      allow_update_branch,
+      allow_forking,
+      delete_branch_on_merge,
+      web_commit_signoff_required,
+      has_downloads,
+      merge_commit_message,
+      merge_commit_title,
+      squash_merge_commit_message,
+      squash_merge_commit_title,
+    ]
   }
 }
 
