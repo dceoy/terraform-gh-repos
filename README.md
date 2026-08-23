@@ -81,12 +81,12 @@ repositories = {
 
 Every inventory entry must already exist in the `dceoy` account. Terraform reads and imports each repository automatically; a missing repository makes planning fail. Creating repositories through this configuration is intentionally unsupported.
 
-Repository descriptions and visibility are intentionally left unmanaged. Imported repositories retain their current values. Terraform reads the current visibility only to avoid configuring GitHub Free features that are unavailable on private personal repositories.
+Repository descriptions, visibility, and archive state are intentionally left unmanaged and retain their current GitHub values. Terraform reads visibility and archive state only to avoid configuring unsupported features or writing settings to archived repositories.
 
 The default security policy applies Dependabot vulnerability alerts and security updates to active repositories, gives the default Actions `GITHUB_TOKEN` read-only permissions, and allows GitHub Actions to approve pull requests. Workflows that require write access must request it explicitly at workflow or job scope.
 
-For public repositories, where GitHub Free supports the features, Terraform also enables Code Security, secret scanning, secret-scanning push protection, and one identical default-branch ruleset per repository. The common ruleset prevents branch deletion and force pushes, requires changes through pull requests with zero mandatory approvals, and requires review threads to be resolved. Private repositories on a GitHub Free personal account are excluded from ruleset and public-only security configuration.
+For active public repositories, where GitHub Free supports the features, Terraform also enables Code Security, secret scanning, secret-scanning push protection, and one identical default-branch ruleset per repository. The common ruleset prevents branch deletion and force pushes, requires changes through pull requests with zero mandatory approvals, and requires review threads to be resolved. Private and archived repositories are excluded from ruleset and public-only security configuration.
 
-The pre-existing `terraform-gh-repos` ruleset (ID `20934253`) is imported declaratively in `imports.tf` while that repository is an active public repository; ruleset IDs and policy are not part of repository inventory. Other active public repositories receive the common ruleset automatically.
+The `terraform-gh-repos` ruleset was already imported by the configuration that predates this migration, so this configuration does not retain its historical ruleset ID. When onboarding another existing public repository that already has the ruleset Terraform should manage, import that ruleset into `github_repository_ruleset.default_branch["<repository>"]` once before applying rather than storing its ID in repository inventory.
 
-Review the HCP Terraform plan before applying when first importing an existing repository because Terraform will reconcile its managed GitHub settings while leaving the repository description and visibility unchanged.
+Review the HCP Terraform plan before applying when first importing an existing repository because Terraform will reconcile its managed GitHub settings while leaving the repository description, visibility, and archive state unchanged.
