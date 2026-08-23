@@ -1,16 +1,13 @@
 data "github_repository" "existing" {
   for_each  = var.repositories
   full_name = "${var.github_owner}/${each.key}"
-}
 
-data "github_rest_api" "dependabot_security_updates" {
-  for_each = local.archived_repositories
-  endpoint = "repos/${var.github_owner}/${each.key}/automated-security-fixes"
-}
-
-data "github_rest_api" "workflow_repository_permissions" {
-  for_each = local.archived_repositories
-  endpoint = "repos/${var.github_owner}/${each.key}/actions/permissions/workflow"
+  lifecycle {
+    postcondition {
+      condition     = !self.archived
+      error_message = "Archived repository ${each.key} is outside Terraform management scope."
+    }
+  }
 }
 
 resource "github_repository" "this" {
@@ -18,18 +15,19 @@ resource "github_repository" "this" {
   #checkov:skip=CKV2_GIT_1:Ruleset-based branch protection is applied uniformly to public repositories supported by GitHub Free.
   for_each               = var.repositories
   name                   = each.key
-  homepage_url           = local.repository_settings[each.key].homepage_url
-  topics                 = local.repository_settings[each.key].topics
-  has_issues             = local.repository_settings[each.key].has_issues
-  has_discussions        = local.repository_settings[each.key].has_discussions
-  has_projects           = local.repository_settings[each.key].has_projects
-  has_wiki               = local.repository_settings[each.key].has_wiki
+  homepage_url           = data.github_repository.existing[each.key].homepage_url
+  topics                 = toset(data.github_repository.existing[each.key].topics)
+  has_issues             = each.value.has_issues
+  has_discussions        = each.value.has_discussions
+  has_projects           = each.value.has_projects
+  has_wiki               = each.value.has_wiki
   allow_merge_commit     = each.value.allow_merge_commit
   allow_squash_merge     = each.value.allow_squash_merge
   allow_rebase_merge     = each.value.allow_rebase_merge
   allow_auto_merge       = each.value.allow_auto_merge
   allow_update_branch    = each.value.allow_update_branch
   delete_branch_on_merge = each.value.delete_branch_on_merge
+
   dynamic "security_and_analysis" {
     for_each = contains(keys(local.public_repositories), each.key) ? [true] : []
     content {
@@ -44,6 +42,7 @@ resource "github_repository" "this" {
       }
     }
   }
+
   lifecycle {
     prevent_destroy = true
     ignore_changes = [
@@ -62,7 +61,7 @@ resource "github_repository" "this" {
 }
 
 resource "github_repository_vulnerability_alerts" "this" {
-  for_each   = local.active_repositories
+  for_each   = var.repositories
   repository = github_repository.this[each.key].name
   enabled    = each.value.vulnerability_alerts
 }
@@ -70,21 +69,15 @@ resource "github_repository_vulnerability_alerts" "this" {
 resource "github_repository_dependabot_security_updates" "this" {
   for_each   = var.repositories
   repository = github_repository.this[each.key].name
-  enabled = contains(keys(local.archived_repositories), each.key) ? (
-    local.archived_dependabot_security_updates[each.key]
-  ) : each.value.dependabot_security_updates
+  enabled    = each.value.dependabot_security_updates
   depends_on = [github_repository_vulnerability_alerts.this]
 }
 
 resource "github_workflow_repository_permissions" "this" {
-  for_each   = var.repositories
-  repository = github_repository.this[each.key].name
-  default_workflow_permissions = contains(keys(local.archived_repositories), each.key) ? (
-    local.archived_workflow_repository_permissions[each.key].default_workflow_permissions
-  ) : each.value.default_workflow_permissions
-  can_approve_pull_request_reviews = contains(keys(local.archived_repositories), each.key) ? (
-    local.archived_workflow_repository_permissions[each.key].can_approve_pull_request_reviews
-  ) : each.value.can_approve_pull_request_reviews
+  for_each                         = var.repositories
+  repository                       = github_repository.this[each.key].name
+  default_workflow_permissions     = each.value.default_workflow_permissions
+  can_approve_pull_request_reviews = each.value.can_approve_pull_request_reviews
 }
 
 resource "github_repository_ruleset" "default_branch" {
@@ -93,16 +86,19 @@ resource "github_repository_ruleset" "default_branch" {
   repository  = github_repository.this[each.key].name
   target      = "branch"
   enforcement = "active"
+
   conditions {
     ref_name {
       include = ["~DEFAULT_BRANCH"]
       exclude = []
     }
   }
+
   rules {
     deletion                = true
     non_fast_forward        = true
     required_linear_history = false
+
     pull_request {
       allowed_merge_methods             = ["merge", "squash", "rebase"]
       dismiss_stale_reviews_on_push     = false
