@@ -12,8 +12,8 @@ repositories = {
     allow_update_branch    = true
     delete_branch_on_merge = true
 
-    default_workflow_permissions     = "write"
-    can_approve_pull_request_reviews = true
+    default_workflow_permissions     = "read"
+    can_approve_pull_request_reviews = false
 
     archived        = false
     import_existing = true
@@ -21,6 +21,9 @@ repositories = {
     ruleset = {
       enabled = true
       id      = 20934253
+      required_status_checks = [
+        "Terraform Cloud/dceoy/repo-id-FxBskt5iSBsdxFwJ",
+      ]
     }
   }
 }

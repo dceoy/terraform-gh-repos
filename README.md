@@ -45,7 +45,7 @@ Create a VCS-driven workspace with:
 
 Store GitHub App credentials as Terraform variables on the workspace: `github_app_id`, `github_app_installation_id`, and `github_app_pem_file` (the PEM file contents, including newlines). Mark only `github_app_pem_file` as sensitive; the app and installation IDs are identifiers, not secrets. The provider uses GitHub App authentication only when all three are set; otherwise it uses `GITHUB_TOKEN` or the provider's normal token/CLI authentication. These must be Terraform variables, not environment variables — the module reads them itself and passes them into the `github` provider's `app_auth` block.
 
-For GitHub App authentication, grant the app repository `Administration: Read and write` and `Contents: Read and write` permissions. Administration covers repository settings, rulesets, vulnerability alerts, and workflow-permission reconciliation; Contents is required for merge-setting reconciliation.
+For GitHub App authentication, grant the app repository `Administration: Read and write` and `Contents: Read and write` permissions. Administration covers repository settings, rulesets, vulnerability alerts, security settings, and workflow-permission reconciliation; Contents is required for merge-setting reconciliation.
 
 Do not set `GITHUB_OWNER`; the owner is configured by the Terraform variable `github_owner`.
 
@@ -61,6 +61,9 @@ repositories = {
     ruleset = {
       enabled = true
       id      = 20934253
+      required_status_checks = [
+        "Terraform Cloud/dceoy/repo-id-FxBskt5iSBsdxFwJ",
+      ]
     }
   }
 }
@@ -68,8 +71,10 @@ repositories = {
 
 Existing repositories default to `import_existing = true`. Set it to `false` when Terraform should create a new repository. Existing repository workflow permissions are imported automatically; for an existing ruleset, set `ruleset.id` so Terraform imports it instead of creating a second ruleset.
 
-Repository descriptions and visibility are intentionally left unmanaged. Imported repositories retain their current values, while newly created repositories use GitHub's defaults, including public visibility.
+Repository descriptions and visibility are intentionally left unmanaged. Imported repositories retain their current values. Terraform reads the current visibility only to avoid configuring GitHub Free features that are unavailable on private personal repositories. Newly created repositories use GitHub's default public visibility.
 
-The default repository policy enables Issues, Projects, Wiki, merge/squash/rebase merging, auto-merge, branch updates, deletion of merged branches, and vulnerability alerts. It grants read and write permissions to the default `GITHUB_TOKEN` and allows GitHub Actions to approve pull requests. Repository rulesets are enabled by default and protect the default branch from deletion and force pushes, require changes through pull requests with zero mandatory approvals, allow merge/squash/rebase, and do not require linear history or review-thread resolution.
+The default security policy applies Dependabot vulnerability alerts and security updates to active repositories, gives the default Actions `GITHUB_TOKEN` read-only permissions, and prevents Actions from approving pull requests. Workflows that require write access must request it explicitly at workflow or job scope.
+
+For public repositories, where GitHub Free supports the features, Terraform also enables Code Security, secret scanning, secret-scanning push protection, and the default-branch ruleset. The ruleset prevents branch deletion and force pushes, requires changes through pull requests with zero mandatory approvals, requires review threads to be resolved, and can require configured status checks. Private repositories on a GitHub Free personal account are excluded from ruleset and public-only security configuration.
 
 Review the HCP Terraform plan before applying when first importing an existing repository because Terraform will reconcile its managed GitHub settings while leaving the repository description and visibility unchanged.

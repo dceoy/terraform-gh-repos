@@ -1,6 +1,15 @@
+data "github_repository" "existing" {
+  for_each = {
+    for name, repo in var.repositories : name => repo
+    if repo.import_existing
+  }
+
+  full_name = "${var.github_owner}/${each.key}"
+}
+
 resource "github_repository" "this" {
   #checkov:skip=CKV_GIT_1:Managed repositories may intentionally be public; visibility is preserved from GitHub.
-  #checkov:skip=CKV2_GIT_1:This skip applies to the whole for_each'd resource block, i.e. every current and future entry in `repositories`. Ruleset-based branch protection is enabled by default and can be disabled per repository via `ruleset.enabled`; reviewers must confirm intentional opt-outs manually since Checkov cannot flag disabled rulesets here.
+  #checkov:skip=CKV2_GIT_1:Ruleset-based branch protection is applied to public repositories on GitHub Free and can be disabled per repository via `ruleset.enabled`.
   for_each = var.repositories
 
   name                   = each.key
@@ -18,6 +27,24 @@ resource "github_repository" "this" {
   delete_branch_on_merge = each.value.delete_branch_on_merge
   archived               = each.value.archived
 
+  dynamic "security_and_analysis" {
+    for_each = contains(keys(local.public_repositories), each.key) ? [true] : []
+
+    content {
+      code_security {
+        status = "enabled"
+      }
+
+      secret_scanning {
+        status = "enabled"
+      }
+
+      secret_scanning_push_protection {
+        status = "enabled"
+      }
+    }
+  }
+
   lifecycle {
     prevent_destroy = true
     ignore_changes  = [description, visibility]
@@ -29,6 +56,13 @@ resource "github_repository_vulnerability_alerts" "this" {
 
   repository = github_repository.this[each.key].name
   enabled    = each.value.vulnerability_alerts
+}
+
+resource "github_repository_dependabot_security_updates" "this" {
+  for_each = local.active_repositories
+
+  repository = github_repository.this[each.key].name
+  enabled    = each.value.dependabot_security_updates
 }
 
 resource "github_workflow_repository_permissions" "this" {
@@ -69,6 +103,22 @@ resource "github_repository_ruleset" "default_branch" {
         require_last_push_approval        = each.value.ruleset.require_last_push_approval
         required_approving_review_count   = each.value.ruleset.required_approving_review_count
         required_review_thread_resolution = each.value.ruleset.required_review_thread_resolution
+      }
+    }
+
+    dynamic "required_status_checks" {
+      for_each = length(each.value.ruleset.required_status_checks) > 0 ? [true] : []
+
+      content {
+        strict_required_status_checks_policy = each.value.ruleset.strict_required_status_checks_policy
+
+        dynamic "required_check" {
+          for_each = each.value.ruleset.required_status_checks
+
+          content {
+            context = required_check.value
+          }
+        }
       }
     }
   }
