@@ -15,8 +15,6 @@ resource "github_repository" "this" {
   #checkov:skip=CKV2_GIT_1:Ruleset-based branch protection is applied uniformly to public repositories supported by GitHub Free.
   for_each               = var.repositories
   name                   = each.key
-  homepage_url           = data.github_repository.existing[each.key].homepage_url
-  topics                 = toset(data.github_repository.existing[each.key].topics)
   has_issues             = each.value.has_issues
   has_discussions        = each.value.has_discussions
   has_projects           = each.value.has_projects
@@ -47,6 +45,8 @@ resource "github_repository" "this" {
     prevent_destroy = true
     ignore_changes = [
       description,
+      homepage_url,
+      topics,
       visibility,
       archived,
       allow_forking,
