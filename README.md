@@ -81,7 +81,7 @@ repositories = {
 
 Every inventory entry must already exist in the `dceoy` account. Terraform reads and imports each repository automatically; a missing repository makes planning fail. Creating repositories through this configuration is intentionally unsupported.
 
-Repository descriptions, website URLs, topics, visibility, and archive state are intentionally left unmanaged and retain their current GitHub values. Terraform manages merge methods, auto-merge, update-branch support, and automatic deletion of merged branches from the repository inventory (using the defaults when omitted). Terraform reads visibility and archive state to avoid configuring unsupported features or writing settings to archived repositories.
+Repository descriptions, website URLs, topics, visibility, and archive state are intentionally left unmanaged and retain their current GitHub values. Terraform manages merge methods, auto-merge, update-branch support, and automatic deletion of merged branches from the repository inventory (using the defaults when omitted). Terraform reads visibility and archive state to gate features that are unavailable to private or archived repositories.
 
 The default security policy applies Dependabot vulnerability alerts and security updates to active repositories, gives the default Actions `GITHUB_TOKEN` read-only permissions, and allows GitHub Actions to approve pull requests. Workflows that require write access must request it explicitly at workflow or job scope.
 
