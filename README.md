@@ -17,7 +17,7 @@ HCP Terraform
 GitHub API
 ```
 
-Terraform manages only repositories declared in `modules/repos/repositories.auto.tfvars`. By default the inventory declares only this `terraform-gh-repos` repository itself (imported via `import_existing = true`), so adopting this repository does not change any other existing GitHub repositories.
+Terraform manages only existing repositories declared in `modules/repos/repositories.auto.tfvars`. By default the inventory declares only this `terraform-gh-repos` repository itself, so adopting this repository does not change any other existing GitHub repositories. Repository creation is intentionally out of scope.
 
 ## Layout
 
@@ -49,7 +49,7 @@ Create a private GitHub App owned by the `dceoy` personal account:
    - **Contents: Read and write**
 5. Select **Only on this account** for where the app can be installed, then create the app.
 6. Record the **App ID** and generate a private key under **Private keys**. Keep the downloaded PEM private.
-7. Open **Install App** and install it on the `dceoy` account. Select **All repositories** if Terraform should manage or create repositories without updating the installation each time; otherwise select only the repositories Terraform manages.
+7. Open **Install App** and install it on the `dceoy` account. Select **All repositories** if Terraform should manage repositories without updating the installation each time; otherwise select only the repositories Terraform manages.
 8. After installation, open the installation settings and record the numeric installation ID from the URL (`/settings/installations/<installation-id>`).
 
 The App ID and installation ID are identifiers, not secrets. The generated PEM private key is a secret and must not be committed to this repository.
@@ -70,23 +70,23 @@ Do not set `GITHUB_OWNER`; the owner is configured by the Terraform variable `gi
 
 ## Repository inventory
 
-Add repositories explicitly to `modules/repos/repositories.auto.tfvars`:
+Add existing repositories explicitly to `modules/repos/repositories.auto.tfvars`:
 
 ```hcl
 repositories = {
-  "terraform-gh-repos" = {}
+  "terraform-gh-repos"  = {}
   "another-public-repo" = {}
 }
 ```
 
-Existing repositories default to `import_existing = true`. Set it to `false` when Terraform should create a new repository. Existing repository workflow permissions are imported automatically.
+Every inventory entry must already exist in the `dceoy` account. Terraform reads and imports each repository automatically; a missing repository makes planning fail. Creating repositories through this configuration is intentionally unsupported.
 
-Repository descriptions and visibility are intentionally left unmanaged. Imported repositories retain their current values. Terraform reads the current visibility only to avoid configuring GitHub Free features that are unavailable on private personal repositories. Newly created repositories use GitHub's default public visibility.
+Repository descriptions and visibility are intentionally left unmanaged. Imported repositories retain their current values. Terraform reads the current visibility only to avoid configuring GitHub Free features that are unavailable on private personal repositories.
 
 The default security policy applies Dependabot vulnerability alerts and security updates to active repositories, gives the default Actions `GITHUB_TOKEN` read-only permissions, and allows GitHub Actions to approve pull requests. Workflows that require write access must request it explicitly at workflow or job scope.
 
 For public repositories, where GitHub Free supports the features, Terraform also enables Code Security, secret scanning, secret-scanning push protection, and one identical default-branch ruleset per repository. The common ruleset prevents branch deletion and force pushes, requires changes through pull requests with zero mandatory approvals, and requires review threads to be resolved. Private repositories on a GitHub Free personal account are excluded from ruleset and public-only security configuration.
 
-The pre-existing `terraform-gh-repos` ruleset (ID `20934253`) is imported declaratively in `imports.tf`; ruleset IDs and policy are not part of repository inventory. New public repositories receive the common ruleset automatically.
+The pre-existing `terraform-gh-repos` ruleset (ID `20934253`) is imported declaratively in `imports.tf` while that repository is an active public repository; ruleset IDs and policy are not part of repository inventory. Other active public repositories receive the common ruleset automatically.
 
 Review the HCP Terraform plan before applying when first importing an existing repository because Terraform will reconcile its managed GitHub settings while leaving the repository description and visibility unchanged.
