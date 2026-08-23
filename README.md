@@ -37,6 +37,25 @@ modules/
 
 ## HCP Terraform
 
+### GitHub App setup
+
+Create a private GitHub App owned by the `dceoy` personal account:
+
+1. Open **Settings > Developer settings > GitHub Apps > New GitHub App**.
+2. Set a unique app name and use this repository URL as the Homepage URL. OAuth callback and setup URLs are not required.
+3. Disable **Webhook > Active**; Terraform does not consume GitHub App webhooks.
+4. Grant only these repository permissions:
+   - **Administration: Read and write**
+   - **Contents: Read and write**
+5. Select **Only on this account** for where the app can be installed, then create the app.
+6. Record the **App ID** and generate a private key under **Private keys**. Keep the downloaded PEM private.
+7. Open **Install App** and install it on the `dceoy` account. Select **All repositories** if Terraform should manage or create repositories without updating the installation each time; otherwise select only the repositories Terraform manages.
+8. After installation, open the installation settings and record the numeric installation ID from the URL (`/settings/installations/<installation-id>`).
+
+The App ID and installation ID are identifiers, not secrets. The generated PEM private key is a secret and must not be committed to this repository.
+
+### Workspace setup
+
 Create a VCS-driven workspace with:
 
 - VCS repository: `dceoy/terraform-gh-repos`
