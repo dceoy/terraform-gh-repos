@@ -13,7 +13,7 @@ repositories = {
     delete_branch_on_merge = true
 
     default_workflow_permissions     = "read"
-    can_approve_pull_request_reviews = false
+    can_approve_pull_request_reviews = true
 
     archived        = false
     import_existing = true
