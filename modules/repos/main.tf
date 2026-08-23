@@ -1,8 +1,5 @@
 data "github_repository" "existing" {
-  for_each = {
-    for name, repo in var.repositories : name => repo
-    if repo.import_existing
-  }
+  for_each = var.repositories
 
   full_name = "${var.github_owner}/${each.key}"
 }
