@@ -32,24 +32,6 @@ locals {
       has_wiki = contains(keys(local.archived_repositories), name) ? (
         data.github_repository.existing[name].has_wiki
       ) : repo.has_wiki
-      allow_merge_commit = contains(keys(local.archived_repositories), name) ? (
-        data.github_repository.existing[name].allow_merge_commit
-      ) : repo.allow_merge_commit
-      allow_squash_merge = contains(keys(local.archived_repositories), name) ? (
-        data.github_repository.existing[name].allow_squash_merge
-      ) : repo.allow_squash_merge
-      allow_rebase_merge = contains(keys(local.archived_repositories), name) ? (
-        data.github_repository.existing[name].allow_rebase_merge
-      ) : repo.allow_rebase_merge
-      allow_auto_merge = contains(keys(local.archived_repositories), name) ? (
-        data.github_repository.existing[name].allow_auto_merge
-      ) : repo.allow_auto_merge
-      allow_update_branch = contains(keys(local.archived_repositories), name) ? (
-        data.github_repository.existing[name].allow_update_branch
-      ) : repo.allow_update_branch
-      delete_branch_on_merge = contains(keys(local.archived_repositories), name) ? (
-        data.github_repository.existing[name].delete_branch_on_merge
-      ) : repo.delete_branch_on_merge
     }
   }
 
