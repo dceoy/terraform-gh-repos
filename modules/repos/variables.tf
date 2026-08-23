@@ -28,8 +28,8 @@ variable "repositories" {
   type = map(object({
     has_issues                       = optional(bool, true)
     has_discussions                  = optional(bool, false)
-    has_projects                     = optional(bool, true)
-    has_wiki                         = optional(bool, true)
+    has_projects                     = optional(bool, false)
+    has_wiki                         = optional(bool, false)
     allow_merge_commit               = optional(bool, true)
     allow_squash_merge               = optional(bool, true)
     allow_rebase_merge               = optional(bool, true)
