@@ -39,7 +39,7 @@ variable "repositories" {
     allow_update_branch              = optional(bool, true)
     delete_branch_on_merge           = optional(bool, true)
     default_workflow_permissions     = optional(string, "read")
-    can_approve_pull_request_reviews = optional(bool, false)
+    can_approve_pull_request_reviews = optional(bool, true)
     archived                         = optional(bool, false)
     vulnerability_alerts             = optional(bool, true)
     dependabot_security_updates      = optional(bool, true)
