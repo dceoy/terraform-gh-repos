@@ -14,12 +14,8 @@ locals {
 
   repository_settings = {
     for name, repo in var.repositories : name => {
-      homepage_url = contains(keys(local.archived_repositories), name) ? (
-        data.github_repository.existing[name].homepage_url
-      ) : repo.homepage_url
-      topics = contains(keys(local.archived_repositories), name) ? (
-        toset(data.github_repository.existing[name].topics)
-      ) : repo.topics
+      homepage_url = data.github_repository.existing[name].homepage_url
+      topics       = toset(data.github_repository.existing[name].topics)
       has_issues = contains(keys(local.archived_repositories), name) ? (
         data.github_repository.existing[name].has_issues
       ) : repo.has_issues
