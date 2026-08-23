@@ -3,23 +3,33 @@ data "github_repository" "existing" {
   full_name = "${var.github_owner}/${each.key}"
 }
 
+data "github_rest_api" "dependabot_security_updates" {
+  for_each = local.archived_repositories
+  endpoint = "repos/${var.github_owner}/${each.key}/automated-security-fixes"
+}
+
+data "github_rest_api" "workflow_repository_permissions" {
+  for_each = local.archived_repositories
+  endpoint = "repos/${var.github_owner}/${each.key}/actions/permissions/workflow"
+}
+
 resource "github_repository" "this" {
   #checkov:skip=CKV_GIT_1:Managed repositories may intentionally be public; visibility is preserved from GitHub.
   #checkov:skip=CKV2_GIT_1:Ruleset-based branch protection is applied uniformly to public repositories supported by GitHub Free.
   for_each               = var.repositories
   name                   = each.key
-  homepage_url           = each.value.homepage_url
-  topics                 = each.value.topics
-  has_issues             = each.value.has_issues
-  has_discussions        = each.value.has_discussions
-  has_projects           = each.value.has_projects
-  has_wiki               = each.value.has_wiki
-  allow_merge_commit     = each.value.allow_merge_commit
-  allow_squash_merge     = each.value.allow_squash_merge
-  allow_rebase_merge     = each.value.allow_rebase_merge
-  allow_auto_merge       = each.value.allow_auto_merge
-  allow_update_branch    = each.value.allow_update_branch
-  delete_branch_on_merge = each.value.delete_branch_on_merge
+  homepage_url           = local.repository_settings[each.key].homepage_url
+  topics                 = local.repository_settings[each.key].topics
+  has_issues             = local.repository_settings[each.key].has_issues
+  has_discussions        = local.repository_settings[each.key].has_discussions
+  has_projects           = local.repository_settings[each.key].has_projects
+  has_wiki               = local.repository_settings[each.key].has_wiki
+  allow_merge_commit     = local.repository_settings[each.key].allow_merge_commit
+  allow_squash_merge     = local.repository_settings[each.key].allow_squash_merge
+  allow_rebase_merge     = local.repository_settings[each.key].allow_rebase_merge
+  allow_auto_merge       = local.repository_settings[each.key].allow_auto_merge
+  allow_update_branch    = local.repository_settings[each.key].allow_update_branch
+  delete_branch_on_merge = local.repository_settings[each.key].delete_branch_on_merge
   dynamic "security_and_analysis" {
     for_each = contains(keys(local.public_repositories), each.key) ? [true] : []
     content {
@@ -47,16 +57,22 @@ resource "github_repository_vulnerability_alerts" "this" {
 }
 
 resource "github_repository_dependabot_security_updates" "this" {
-  for_each   = local.active_repositories
+  for_each   = var.repositories
   repository = github_repository.this[each.key].name
-  enabled    = each.value.dependabot_security_updates
+  enabled = contains(keys(local.archived_repositories), each.key) ? (
+    local.archived_dependabot_security_updates[each.key]
+  ) : each.value.dependabot_security_updates
 }
 
 resource "github_workflow_repository_permissions" "this" {
-  for_each                         = local.active_repositories
-  repository                       = github_repository.this[each.key].name
-  default_workflow_permissions     = each.value.default_workflow_permissions
-  can_approve_pull_request_reviews = each.value.can_approve_pull_request_reviews
+  for_each   = var.repositories
+  repository = github_repository.this[each.key].name
+  default_workflow_permissions = contains(keys(local.archived_repositories), each.key) ? (
+    local.archived_workflow_repository_permissions[each.key].default_workflow_permissions
+  ) : each.value.default_workflow_permissions
+  can_approve_pull_request_reviews = contains(keys(local.archived_repositories), each.key) ? (
+    local.archived_workflow_repository_permissions[each.key].can_approve_pull_request_reviews
+  ) : each.value.can_approve_pull_request_reviews
 }
 
 resource "github_repository_ruleset" "default_branch" {
