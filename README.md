@@ -44,9 +44,8 @@ Create a private GitHub App owned by the `dceoy` personal account:
 1. Open **Settings > Developer settings > GitHub Apps > New GitHub App**.
 2. Set a unique app name and use this repository URL as the Homepage URL. OAuth callback and setup URLs are not required.
 3. Disable **Webhook > Active**; Terraform does not consume GitHub App webhooks.
-4. Grant only these repository permissions:
+4. Grant only this repository permission:
    - **Administration: Read and write**
-   - **Contents: Read and write**
 5. Select **Only on this account** for where the app can be installed, then create the app.
 6. Record the **App ID** and generate a private key under **Private keys**. Keep the downloaded PEM private.
 7. Open **Install App** and install it on the `dceoy` account. Select **All repositories** if Terraform should manage repositories without updating the installation each time; otherwise select only the repositories Terraform manages.
@@ -64,7 +63,7 @@ Create a VCS-driven workspace with:
 
 Store GitHub App credentials as Terraform variables on the workspace: `github_app_id`, `github_app_installation_id`, and `github_app_pem_file` (the PEM file contents, including newlines). Mark only `github_app_pem_file` as sensitive; the app and installation IDs are identifiers, not secrets. The provider uses GitHub App authentication only when all three are set; otherwise it uses `GITHUB_TOKEN` or the provider's normal token/CLI authentication. These must be Terraform variables, not environment variables — the module reads them itself and passes them into the `github` provider's `app_auth` block.
 
-For GitHub App authentication, grant the app repository `Administration: Read and write` and `Contents: Read and write` permissions. Administration covers repository settings, rulesets, vulnerability alerts, security settings, and workflow-permission reconciliation; Contents is required for merge-setting reconciliation.
+For GitHub App authentication, grant the app repository `Administration: Read and write` permission. It covers repository settings, rulesets, vulnerability alerts, security settings, workflow-permission reconciliation, and merge-setting reconciliation.
 
 Do not set `GITHUB_OWNER`; the owner is configured by the Terraform variable `github_owner`.
 
