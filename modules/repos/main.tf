@@ -1,12 +1,10 @@
 resource "github_repository" "this" {
-  #checkov:skip=CKV_GIT_1:Managed repositories may intentionally be public; visibility is configurable.
+  #checkov:skip=CKV_GIT_1:Managed repositories may intentionally be public; visibility is preserved from GitHub.
   #checkov:skip=CKV2_GIT_1:This skip applies to the whole for_each'd resource block, i.e. every current and future entry in `repositories`. Ruleset-based branch protection is enabled by default and can be disabled per repository via `ruleset.enabled`; reviewers must confirm intentional opt-outs manually since Checkov cannot flag disabled rulesets here.
   for_each = var.repositories
 
   name                   = each.key
-  description            = each.value.description
   homepage_url           = each.value.homepage_url
-  visibility             = each.value.visibility
   topics                 = each.value.topics
   has_issues             = each.value.has_issues
   has_discussions        = each.value.has_discussions
@@ -22,6 +20,7 @@ resource "github_repository" "this" {
 
   lifecycle {
     prevent_destroy = true
+    ignore_changes  = [description, visibility]
   }
 }
 
