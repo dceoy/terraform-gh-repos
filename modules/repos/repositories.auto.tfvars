@@ -1,8 +1,5 @@
 repositories = {
   "terraform-gh-repos" = {
-    description = "[WIP] Terraform modules of GitHub repositories"
-    visibility  = "public"
-
     has_issues      = true
     has_discussions = false
     has_projects    = true
