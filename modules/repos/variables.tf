@@ -45,7 +45,6 @@ variable "repositories" {
     dependabot_security_updates      = optional(bool, true)
   }))
   default = {}
-
   validation {
     condition = alltrue([
       for repo in values(var.repositories) :
