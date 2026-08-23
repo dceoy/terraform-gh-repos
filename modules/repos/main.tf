@@ -73,6 +73,7 @@ resource "github_repository_dependabot_security_updates" "this" {
   enabled = contains(keys(local.archived_repositories), each.key) ? (
     local.archived_dependabot_security_updates[each.key]
   ) : each.value.dependabot_security_updates
+  depends_on = [github_repository_vulnerability_alerts.this]
 }
 
 resource "github_workflow_repository_permissions" "this" {
