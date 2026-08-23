@@ -26,9 +26,7 @@ variable "github_app_pem_file" {
 variable "repositories" {
   description = "Repositories managed by this Terraform configuration."
   type = map(object({
-    description                      = optional(string, "")
     homepage_url                     = optional(string)
-    visibility                       = string
     topics                           = optional(set(string), [])
     has_issues                       = optional(bool, true)
     has_discussions                  = optional(bool, false)
@@ -63,14 +61,6 @@ variable "repositories" {
     }), {})
   }))
   default = {}
-
-  validation {
-    condition = alltrue([
-      for repo in values(var.repositories) :
-      contains(["public", "private"], repo.visibility)
-    ])
-    error_message = "Repository visibility must be public or private."
-  }
 
   validation {
     condition = alltrue([
