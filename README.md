@@ -81,7 +81,9 @@ repositories = {
 
 Every inventory entry must already exist in the `dceoy` account and must not be archived. Terraform reads and imports each repository automatically; a missing or archived repository makes planning fail. Creating repositories through this configuration is intentionally unsupported.
 
-Repository descriptions, website URLs, topics, visibility, and archive state are intentionally left unmanaged and retain their current GitHub values. Terraform manages merge methods, auto-merge, update-branch support, and automatic deletion of merged branches from the repository inventory (using the defaults when omitted).
+Repository descriptions, website URLs, topics, visibility, and archive state are intentionally left unmanaged and retain their current GitHub values. Terraform manages repository feature and merge settings from inventory defaults/overrides where those settings are available on GitHub Free. Projects, discussions, and wikis default to disabled.
+
+For private repositories on GitHub Free, settings unavailable on that plan are preserved from their observed GitHub values rather than reconciled. In particular, wiki and auto-merge settings are retained for private repositories; public repositories continue to use the inventory defaults/overrides.
 
 Archived repositories are outside the Terraform management scope. Terraform does not preserve or reconcile settings for archived repositories. Before retiring a managed repository, remove its Terraform state bindings without destroying the remote repository and remove it from the inventory; archive it only after Terraform no longer manages it. If a repository is archived externally while it remains in the inventory, the next plan fails instead of attempting to modify the read-only repository.
 
