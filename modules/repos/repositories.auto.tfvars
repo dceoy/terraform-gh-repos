@@ -21,9 +21,6 @@ repositories = {
     ruleset = {
       enabled = true
       id      = 20934253
-      required_status_checks = [
-        "Terraform Cloud/dceoy/repo-id-FxBskt5iSBsdxFwJ",
-      ]
     }
   }
 }
