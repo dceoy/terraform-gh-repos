@@ -26,12 +26,16 @@ variable "github_app_pem_file" {
 variable "repositories" {
   description = "Existing repositories managed by this Terraform configuration."
   type = map(object({
-    homepage_url                     = optional(string)
-    topics                           = optional(set(string), [])
     has_issues                       = optional(bool, true)
     has_discussions                  = optional(bool, false)
     has_projects                     = optional(bool, true)
     has_wiki                         = optional(bool, true)
+    allow_merge_commit               = optional(bool, true)
+    allow_squash_merge               = optional(bool, true)
+    allow_rebase_merge               = optional(bool, true)
+    allow_auto_merge                 = optional(bool, true)
+    allow_update_branch              = optional(bool, true)
+    delete_branch_on_merge           = optional(bool, true)
     default_workflow_permissions     = optional(string, "read")
     can_approve_pull_request_reviews = optional(bool, true)
     vulnerability_alerts             = optional(bool, true)
