@@ -17,7 +17,7 @@ HCP Terraform
 GitHub API
 ```
 
-Terraform manages only existing repositories declared in `modules/repos/repositories.auto.tfvars`. By default the inventory declares only this `terraform-gh-repos` repository itself, so adopting this repository does not change any other existing GitHub repositories. Repository creation is intentionally out of scope.
+Terraform manages only existing, active repositories declared in `modules/repos/repositories.auto.tfvars`. By default the inventory declares only this `terraform-gh-repos` repository itself, so adopting this repository does not change any other existing GitHub repositories. Repository creation and archived repositories are intentionally out of scope.
 
 ## Layout
 
@@ -70,7 +70,7 @@ Do not set `GITHUB_OWNER`; the owner is configured by the Terraform variable `gi
 
 ## Repository inventory
 
-Add existing repositories explicitly to `modules/repos/repositories.auto.tfvars`:
+Add existing active repositories explicitly to `modules/repos/repositories.auto.tfvars`:
 
 ```hcl
 repositories = {
@@ -79,13 +79,15 @@ repositories = {
 }
 ```
 
-Every inventory entry must already exist in the `dceoy` account. Terraform reads and imports each repository automatically; a missing repository makes planning fail. Creating repositories through this configuration is intentionally unsupported.
+Every inventory entry must already exist in the `dceoy` account and must not be archived. Terraform reads and imports each repository automatically; a missing or archived repository makes planning fail. Creating repositories through this configuration is intentionally unsupported.
 
-Repository descriptions, website URLs, topics, visibility, and archive state are intentionally left unmanaged and retain their current GitHub values. Terraform manages merge methods, auto-merge, update-branch support, and automatic deletion of merged branches from the repository inventory (using the defaults when omitted). Terraform reads visibility and archive state to gate features that are unavailable to private or archived repositories.
+Repository descriptions, website URLs, topics, visibility, and archive state are intentionally left unmanaged and retain their current GitHub values. Terraform manages merge methods, auto-merge, update-branch support, and automatic deletion of merged branches from the repository inventory (using the defaults when omitted).
 
-The default security policy applies Dependabot vulnerability alerts and security updates to active repositories, gives the default Actions `GITHUB_TOKEN` read-only permissions, and allows GitHub Actions to approve pull requests. Workflows that require write access must request it explicitly at workflow or job scope.
+Archived repositories are outside the Terraform management scope. Terraform does not preserve or reconcile settings for archived repositories. Before retiring a managed repository, remove its Terraform state bindings without destroying the remote repository and remove it from the inventory; archive it only after Terraform no longer manages it. If a repository is archived externally while it remains in the inventory, the next plan fails instead of attempting to modify the read-only repository.
 
-For active public repositories, where GitHub Free supports the features, Terraform also enables Code Security, secret scanning, secret-scanning push protection, and one identical default-branch ruleset per repository. The common ruleset prevents branch deletion and force pushes, requires changes through pull requests with zero mandatory approvals, and requires review threads to be resolved. Private and archived repositories are excluded from ruleset and public-only security configuration.
+The default security policy enables Dependabot vulnerability alerts and security updates, gives the default Actions `GITHUB_TOKEN` read-only permissions, and allows GitHub Actions to approve pull requests. Workflows that require write access must request it explicitly at workflow or job scope.
+
+For public repositories, where GitHub Free supports the features, Terraform also enables Code Security, secret scanning, secret-scanning push protection, and one identical default-branch ruleset per repository. The common ruleset prevents branch deletion and force pushes, requires changes through pull requests with zero mandatory approvals, and requires review threads to be resolved. Private repositories are excluded from ruleset and public-only security configuration.
 
 The `terraform-gh-repos` ruleset was already imported by the configuration that predates this migration, so this configuration does not retain its historical ruleset ID. When onboarding another existing public repository that already has the ruleset Terraform should manage, import that ruleset into `github_repository_ruleset.default_branch["<repository>"]` once before applying rather than storing its ID in repository inventory.
 
