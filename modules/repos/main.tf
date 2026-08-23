@@ -20,7 +20,6 @@ resource "github_repository" "this" {
   allow_auto_merge       = each.value.allow_auto_merge
   allow_update_branch    = each.value.allow_update_branch
   delete_branch_on_merge = each.value.delete_branch_on_merge
-  archived               = each.value.archived
   dynamic "security_and_analysis" {
     for_each = contains(keys(local.public_repositories), each.key) ? [true] : []
     content {
@@ -37,7 +36,7 @@ resource "github_repository" "this" {
   }
   lifecycle {
     prevent_destroy = true
-    ignore_changes  = [description, visibility]
+    ignore_changes  = [description, visibility, archived]
   }
 }
 
