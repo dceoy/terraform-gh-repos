@@ -1,7 +1,6 @@
 data "github_repository" "existing" {
   for_each  = var.repositories
   full_name = "${var.github_owner}/${each.key}"
-
   lifecycle {
     postcondition {
       condition     = !self.archived
@@ -10,7 +9,7 @@ data "github_repository" "existing" {
   }
 }
 
-resource "github_repository" "this" {
+resource "github_repository" "repo" {
   #checkov:skip=CKV_GIT_1:Managed repositories may intentionally be public; visibility is preserved from GitHub.
   #checkov:skip=CKV2_GIT_1:Ruleset-based branch protection is applied uniformly to public repositories supported by GitHub Free.
   for_each               = var.repositories
@@ -25,7 +24,6 @@ resource "github_repository" "this" {
   allow_auto_merge       = data.github_repository.existing[each.key].visibility == "public" ? each.value.allow_auto_merge : data.github_repository.existing[each.key].allow_auto_merge
   allow_update_branch    = each.value.allow_update_branch
   delete_branch_on_merge = each.value.delete_branch_on_merge
-
   dynamic "security_and_analysis" {
     for_each = contains(keys(local.public_repositories), each.key) ? [true] : []
     content {
@@ -40,7 +38,6 @@ resource "github_repository" "this" {
       }
     }
   }
-
   lifecycle {
     prevent_destroy = true
     ignore_changes = [
@@ -60,45 +57,42 @@ resource "github_repository" "this" {
   }
 }
 
-resource "github_repository_vulnerability_alerts" "this" {
+resource "github_repository_vulnerability_alerts" "alerts" {
   for_each   = var.repositories
-  repository = github_repository.this[each.key].name
+  repository = github_repository.repo[each.key].name
   enabled    = each.value.vulnerability_alerts
 }
 
-resource "github_repository_dependabot_security_updates" "this" {
+resource "github_repository_dependabot_security_updates" "dependabot" {
   for_each   = var.repositories
-  repository = github_repository.this[each.key].name
+  repository = github_repository.repo[each.key].name
   enabled    = each.value.dependabot_security_updates
-  depends_on = [github_repository_vulnerability_alerts.this]
+  depends_on = [github_repository_vulnerability_alerts.alerts]
 }
 
-resource "github_workflow_repository_permissions" "this" {
+resource "github_workflow_repository_permissions" "actions" {
   for_each                         = var.repositories
-  repository                       = github_repository.this[each.key].name
+  repository                       = github_repository.repo[each.key].name
   default_workflow_permissions     = each.value.default_workflow_permissions
   can_approve_pull_request_reviews = each.value.can_approve_pull_request_reviews
 }
 
 resource "github_repository_ruleset" "default_branch" {
   for_each    = local.public_repositories
-  name        = "branch-protection"
-  repository  = github_repository.this[each.key].name
+  name        = "default-branch protection"
+  repository  = github_repository.repo[each.key].name
   target      = "branch"
   enforcement = "active"
-
   conditions {
     ref_name {
       include = ["~DEFAULT_BRANCH"]
       exclude = []
     }
   }
-
   rules {
     deletion                = true
     non_fast_forward        = true
     required_linear_history = false
-
     pull_request {
       allowed_merge_methods             = ["merge", "squash", "rebase"]
       dismiss_stale_reviews_on_push     = false
@@ -108,4 +102,24 @@ resource "github_repository_ruleset" "default_branch" {
       required_review_thread_resolution = true
     }
   }
+}
+
+moved {
+  from = github_repository.this
+  to   = github_repository.repo
+}
+
+moved {
+  from = github_repository_vulnerability_alerts.this
+  to   = github_repository_vulnerability_alerts.alerts
+}
+
+moved {
+  from = github_repository_dependabot_security_updates.this
+  to   = github_repository_dependabot_security_updates.dependabot
+}
+
+moved {
+  from = github_workflow_repository_permissions.this
+  to   = github_workflow_repository_permissions.actions
 }
