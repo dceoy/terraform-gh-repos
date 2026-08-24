@@ -36,6 +36,12 @@ resource "github_repository" "repo" {
       secret_scanning_push_protection {
         status = "enabled"
       }
+      secret_scanning_ai_detection {
+        status = "enabled"
+      }
+      secret_scanning_non_provider_patterns {
+        status = "enabled"
+      }
     }
   }
   lifecycle {
