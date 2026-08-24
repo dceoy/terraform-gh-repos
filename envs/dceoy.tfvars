@@ -1,0 +1,3 @@
+repositories = {
+  "terraform-gh-repos" = {}
+}
