@@ -103,28 +103,3 @@ resource "github_repository_ruleset" "branch" {
     }
   }
 }
-
-moved {
-  from = github_repository.this
-  to   = github_repository.repo
-}
-
-moved {
-  from = github_repository_vulnerability_alerts.this
-  to   = github_repository_vulnerability_alerts.alerts
-}
-
-moved {
-  from = github_repository_dependabot_security_updates.this
-  to   = github_repository_dependabot_security_updates.dependabot
-}
-
-moved {
-  from = github_workflow_repository_permissions.this
-  to   = github_workflow_repository_permissions.actions
-}
-
-moved {
-  from = github_repository_ruleset.default_branch
-  to   = github_repository_ruleset.branch
-}
