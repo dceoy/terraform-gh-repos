@@ -77,9 +77,9 @@ resource "github_workflow_repository_permissions" "actions" {
   can_approve_pull_request_reviews = each.value.can_approve_pull_request_reviews
 }
 
-resource "github_repository_ruleset" "default_branch" {
+resource "github_repository_ruleset" "branch" {
   for_each    = local.public_repositories
-  name        = "default-branch protection"
+  name        = "default-branch-protection"
   repository  = github_repository.repo[each.key].name
   target      = "branch"
   enforcement = "active"
@@ -122,4 +122,9 @@ moved {
 moved {
   from = github_workflow_repository_permissions.this
   to   = github_workflow_repository_permissions.actions
+}
+
+moved {
+  from = github_repository_ruleset.default_branch
+  to   = github_repository_ruleset.branch
 }
