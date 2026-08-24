@@ -17,7 +17,7 @@ HCP Terraform
 GitHub API
 ```
 
-Terraform manages only repositories declared in `modules/repos/repositories.auto.tfvars`. By default the inventory declares only this `terraform-gh-repos` repository itself (imported via `import_existing = true`), so adopting this repository does not change any other existing GitHub repositories.
+Terraform manages only existing, active repositories declared in `modules/repos/repositories.auto.tfvars`. By default the inventory declares only this `terraform-gh-repos` repository itself, so adopting this repository does not change any other existing GitHub repositories. Repository creation and archived repositories are intentionally out of scope.
 
 ## Layout
 
@@ -37,6 +37,25 @@ modules/
 
 ## HCP Terraform
 
+### GitHub App setup
+
+Create a private GitHub App owned by the `dceoy` personal account:
+
+1. Open **Settings > Developer settings > GitHub Apps > New GitHub App**.
+2. Set a unique app name and use this repository URL as the Homepage URL. OAuth callback and setup URLs are not required.
+3. Disable **Webhook > Active**; Terraform does not consume GitHub App webhooks.
+4. Grant these repository permissions:
+   - **Administration: Read and write**
+   - **Contents: Read and write**
+5. Select **Only on this account** for where the app can be installed, then create the app.
+6. Record the **App ID** and generate a private key under **Private keys**. Keep the downloaded PEM private.
+7. Open **Install App** and install it on the `dceoy` account. Select **All repositories** if Terraform should manage repositories without updating the installation each time; otherwise select only the repositories Terraform manages.
+8. After installation, open the installation settings and record the numeric installation ID from the URL (`/settings/installations/<installation-id>`).
+
+The App ID and installation ID are identifiers, not secrets. The generated PEM private key is a secret and must not be committed to this repository.
+
+### Workspace setup
+
 Create a VCS-driven workspace with:
 
 - VCS repository: `dceoy/terraform-gh-repos`
@@ -45,33 +64,33 @@ Create a VCS-driven workspace with:
 
 Store GitHub App credentials as Terraform variables on the workspace: `github_app_id`, `github_app_installation_id`, and `github_app_pem_file` (the PEM file contents, including newlines). Mark only `github_app_pem_file` as sensitive; the app and installation IDs are identifiers, not secrets. The provider uses GitHub App authentication only when all three are set; otherwise it uses `GITHUB_TOKEN` or the provider's normal token/CLI authentication. These must be Terraform variables, not environment variables — the module reads them itself and passes them into the `github` provider's `app_auth` block.
 
-For GitHub App authentication, grant the app repository `Administration: Read and write` and `Contents: Read and write` permissions. Administration covers repository settings, rulesets, vulnerability alerts, and workflow-permission reconciliation; Contents is required for merge-setting reconciliation.
+For GitHub App authentication, grant the app repository `Administration: Read and write` and `Contents: Read and write` permissions. Administration covers the repository settings managed here, rulesets, vulnerability alerts, security settings, and workflow-permission reconciliation. Contents read/write is required for GitHub to expose the merge-related repository settings that Terraform manages.
 
 Do not set `GITHUB_OWNER`; the owner is configured by the Terraform variable `github_owner`.
 
 ## Repository inventory
 
-Add repositories explicitly to `modules/repos/repositories.auto.tfvars`:
+Add existing active repositories explicitly to `modules/repos/repositories.auto.tfvars`:
 
 ```hcl
 repositories = {
-  "terraform-gh-repos" = {
-    description     = "Manage GitHub repositories with Terraform"
-    visibility      = "public"
-    import_existing = true
-
-    ruleset = {
-      enabled = true
-      id      = 20934253
-    }
-  }
+  "terraform-gh-repos"  = {}
+  "another-public-repo" = {}
 }
 ```
 
-Existing repositories default to `import_existing = true`. Set it to `false` when Terraform should create a new repository. Existing repository workflow permissions are imported automatically; for an existing ruleset, set `ruleset.id` so Terraform imports it instead of creating a second ruleset.
+Every inventory entry must already exist in the `dceoy` account and must not be archived. Terraform reads and imports each repository automatically; a missing or archived repository makes planning fail. Creating repositories through this configuration is intentionally unsupported.
 
-Set `visibility` explicitly for every inventory entry, including repositories being imported, to avoid changing a private repository's visibility unintentionally.
+Repository descriptions, website URLs, topics, visibility, and archive state are intentionally left unmanaged and retain their current GitHub values. Terraform manages repository feature and merge settings from inventory defaults/overrides where those settings are available on GitHub Free. Projects, discussions, and wikis default to disabled.
 
-The default repository policy enables Issues, Projects, Wiki, merge/squash/rebase merging, auto-merge, branch updates, deletion of merged branches, and vulnerability alerts. It grants read and write permissions to the default `GITHUB_TOKEN` and allows GitHub Actions to approve pull requests. Repository rulesets are enabled by default and protect the default branch from deletion and force pushes, require changes through pull requests with zero mandatory approvals, allow merge/squash/rebase, and do not require linear history or review-thread resolution.
+For private repositories on GitHub Free, settings unavailable on that plan are preserved from their observed GitHub values rather than reconciled. In particular, wiki and auto-merge settings are retained for private repositories; public repositories continue to use the inventory defaults/overrides.
 
-Review the HCP Terraform plan before applying when first importing an existing repository because Terraform will reconcile its current GitHub settings with the declared policy.
+Archived repositories are outside the Terraform management scope. Terraform does not preserve or reconcile settings for archived repositories. Before retiring a managed repository, remove its Terraform state bindings without destroying the remote repository and remove it from the inventory; archive it only after Terraform no longer manages it. If a repository is archived externally while it remains in the inventory, the next plan fails instead of attempting to modify the read-only repository.
+
+The default security policy enables Dependabot vulnerability alerts and security updates, gives the default Actions `GITHUB_TOKEN` read-only permissions, and allows GitHub Actions to approve pull requests. Workflows that require write access must request it explicitly at workflow or job scope.
+
+For public repositories, where GitHub Free supports the features, Terraform also enables Code Security, secret scanning, secret-scanning push protection, and one identical default-branch ruleset per repository. The common ruleset prevents branch deletion and force pushes, requires changes through pull requests with zero mandatory approvals, and requires review threads to be resolved. Private repositories are excluded from ruleset and public-only security configuration.
+
+The `terraform-gh-repos` ruleset was already imported by the configuration that predates this migration, so this configuration does not retain its historical ruleset ID. When onboarding another existing public repository that already has the ruleset Terraform should manage, import that ruleset into `github_repository_ruleset.default_branch["<repository>"]` once before applying rather than storing its ID in repository inventory.
+
+Review the HCP Terraform plan before applying when first importing an existing repository because Terraform will reconcile its managed GitHub settings while leaving the repository description, website URL, topics, visibility, and archive state unchanged.
