@@ -17,7 +17,7 @@ HCP Terraform
 GitHub API
 ```
 
-Terraform manages only existing, active repositories declared in `envs/dceoy.tfvars`. By default the inventory declares only this `terraform-gh-repos` repository itself, so adopting this repository does not change any other existing GitHub repositories. Repository creation and archived repositories are intentionally out of scope.
+Terraform manages only existing, active repositories declared in `envs/dceoy.tfvars`. The included `dceoy` inventory declares all currently unarchived repositories in the account, so applying it reconciles the managed settings across that inventory. Repository creation and archived repositories are intentionally out of scope.
 
 ## Layout
 
