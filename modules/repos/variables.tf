@@ -1,7 +1,6 @@
 variable "github_owner" {
-  description = "GitHub personal account that owns the managed repositories."
+  description = "GitHub account that owns the managed repositories."
   type        = string
-  default     = "dceoy"
 }
 
 variable "github_app_id" {
