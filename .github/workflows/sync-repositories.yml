@@ -38,7 +38,7 @@ jobs:
       - name: Synchronize inventory
         run: >
           python3 .github/scripts/sync-repositories.py
-          --tfvars envs/dceoy.tfvars.json
+          --tfvars-json envs/dceoy.tfvars.json
           --repositories-json /tmp/repositories.json
           --removed-file modules/repos/removed.tf
       - name: Create pull request
