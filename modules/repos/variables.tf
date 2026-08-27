@@ -23,11 +23,12 @@ variable "github_app_pem_file" {
 }
 
 variable "repositories" {
-  description = "Existing active repositories managed by this Terraform configuration. Map keys are stable Terraform identities; name defaults to the key."
+  description = "Repositories tracked by this Terraform configuration. Map keys are stable Terraform identities; retired entries are retained as tombstones but excluded from management."
   type = map(object({
     github_id                        = optional(number)
     name                             = optional(string)
     observed_visibility              = optional(string)
+    retired                          = optional(bool, false)
     has_issues                       = optional(bool, true)
     has_discussions                  = optional(bool, false)
     has_projects                     = optional(bool, false)
@@ -73,6 +74,13 @@ variable "repositories" {
       repo.observed_visibility == null || contains(["public", "private", "internal"], repo.observed_visibility)
     ])
     error_message = "Observed repository visibility must be public, private, or internal when set."
+  }
+  validation {
+    condition = alltrue([
+      for repo in values(var.repositories) :
+      !repo.retired || repo.github_id != null
+    ])
+    error_message = "Retired repository tombstones require github_id."
   }
   validation {
     condition = alltrue([
