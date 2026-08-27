@@ -93,6 +93,31 @@ JSON
   [ "$status" -eq 0 ]
 }
 
+@test "retires ruleset after visibility changes before archive" {
+  cat > "$inventory" << 'JSON'
+{
+  "github_owner": "owner",
+  "repositories": {
+    "alpha": {
+      "github_id": 1,
+      "observed_visibility": "private"
+    }
+  }
+}
+JSON
+  cat > "$api" << 'JSON'
+[
+  {"id": 1, "name": "alpha", "visibility": "private", "archived": true, "owner": {"login": "owner"}}
+]
+JSON
+
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api" --removed-file "$removed"
+
+  [ "$status" -eq 0 ]
+  run grep -F 'from = github_repository_ruleset.branch["alpha"]' "$removed"
+  [ "$status" -eq 0 ]
+}
+
 @test "fails closed when a tracked repository is missing from the API" {
   cat > "$inventory" << 'JSON'
 {
