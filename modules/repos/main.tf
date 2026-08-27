@@ -1,10 +1,10 @@
 data "github_repository" "existing" {
   for_each  = var.repositories
-  full_name = "${var.github_owner}/${each.key}"
+  full_name = "${var.github_owner}/${local.repository_names[each.key]}"
   lifecycle {
     postcondition {
       condition     = !self.archived
-      error_message = "Archived repository ${each.key} is outside Terraform management scope."
+      error_message = "Archived repository ${local.repository_names[each.key]} is outside Terraform management scope."
     }
   }
 }
@@ -13,7 +13,7 @@ resource "github_repository" "repo" {
   #checkov:skip=CKV_GIT_1:Managed repositories may intentionally be public; visibility is preserved from GitHub.
   #checkov:skip=CKV2_GIT_1:Ruleset-based branch protection is applied uniformly to public repositories supported by GitHub Free.
   for_each               = var.repositories
-  name                   = each.key
+  name                   = local.repository_names[each.key]
   has_issues             = each.value.has_issues
   has_discussions        = each.value.has_discussions
   has_projects           = each.value.has_projects
