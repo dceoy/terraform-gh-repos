@@ -17,13 +17,13 @@ HCP Terraform
 GitHub API
 ```
 
-Terraform manages only existing, active repositories declared in `envs/dceoy.tfvars`. The included `dceoy` inventory declares all currently unarchived repositories in the account, so applying it reconciles the managed settings across that inventory. Repository creation and archived repositories are intentionally out of scope.
+Terraform manages only existing, active repositories declared in `envs/dceoy.tfvars.json`. The included `dceoy` inventory declares all currently unarchived repositories in the account, so applying it reconciles the managed settings across that inventory. Repository creation and archived repositories are intentionally out of scope.
 
 ## Layout
 
 ```text
 envs/
-└── dceoy.tfvars
+└── dceoy.tfvars.json
 
 modules/
 └── repos/
@@ -38,7 +38,7 @@ modules/
     └── version.tf
 ```
 
-`modules/repos` contains no persistent `dceoy`-specific repository inventory. Repository identity and synchronization metadata live in the selected tfvars. `removed.tf` is an exceptional generated state-transition artifact: traditional Terraform `removed` blocks require explicit resource addresses and cannot be driven by `for_each` or input variables.
+`modules/repos` contains no persistent `dceoy`-specific repository inventory. Repository identity and synchronization metadata live in the selected JSON tfvars file, which can be updated deterministically without parsing HCL. `removed.tf` is an exceptional generated state-transition artifact: traditional Terraform `removed` blocks require explicit resource addresses and cannot be driven by `for_each` or input variables.
 
 ## HCP Terraform
 
@@ -70,30 +70,31 @@ Create a VCS-driven workspace with:
 Configure these environment variables so Terraform loads the environment-specific variable file for both planning and applying:
 
 ```text
-TF_CLI_ARGS_plan=-var-file="../../envs/dceoy.tfvars"
-TF_CLI_ARGS_apply=-var-file="../../envs/dceoy.tfvars"
+TF_CLI_ARGS_plan=-var-file="../../envs/dceoy.tfvars.json"
+TF_CLI_ARGS_apply=-var-file="../../envs/dceoy.tfvars.json"
 ```
 
-Configure automatic run triggering for changes under `modules/repos/**` and `envs/dceoy.tfvars`, because the variable file is outside the Terraform working directory.
+Configure automatic run triggering for changes under `modules/repos/**` and `envs/dceoy.tfvars.json`, because the variable file is outside the Terraform working directory.
 
 Store GitHub App credentials as Terraform variables on the workspace: `github_app_id`, `github_app_installation_id`, and `github_app_pem_file` (the PEM file contents, including newlines). Mark only `github_app_pem_file` as sensitive; the app and installation IDs are identifiers, not secrets. The provider uses GitHub App authentication only when all three are set; otherwise it uses `GITHUB_TOKEN` or the provider's normal token/CLI authentication. These must be Terraform variables, not environment variables — the module reads them itself and passes them into the `github` provider's `app_auth` block.
 
 For GitHub App authentication, grant the app repository `Administration: Read and write` and `Contents: Read and write` permissions. Administration covers the repository settings managed here, rulesets, vulnerability alerts, security settings, and workflow-permission reconciliation. Contents read/write is required for GitHub to expose the merge-related repository settings that Terraform manages.
 
-Do not set `GITHUB_OWNER`; the owner is configured by the required Terraform variable `github_owner` in the selected environment tfvars.
+Do not set `GITHUB_OWNER`; the owner is configured by the required Terraform variable `github_owner` in the selected environment JSON tfvars file.
 
 ## Repository inventory
 
-Add the target account and existing active repositories explicitly to the environment tfvars:
+Add the target account and existing active repositories explicitly to the environment JSON tfvars file:
 
-```hcl
-github_owner = "example"
-
-repositories = {
-  "stable-key" = {
-    name = "current-repository-name"
+```json
+{
+  "github_owner": "example",
+  "repositories": {
+    "stable-key": {
+      "name": "current-repository-name"
+    },
+    "another-repository": {}
   }
-  "another-repository" = {}
 }
 ```
 
@@ -109,13 +110,13 @@ Every inventory entry must already exist in the configured `github_owner` accoun
 
 Configure the repository secret `GH_INVENTORY_TOKEN` with a fine-grained personal access token owned by `dceoy`. Select **All repositories** and grant only **Metadata: Read-only** repository permission so future private repositories are discoverable without giving the inventory token write access. The workflow uses the normal Actions `GITHUB_TOKEN` separately for pull-request creation.
 
-`envs/dceoy.tfvars` is the persistent identity source. Each synchronized repository stores its immutable `github_id` and last `observed_visibility`; the current GitHub name is represented by optional `name`, with the stable map key retained as its Terraform identity. There is no separate repository-ID registry.
+`envs/dceoy.tfvars.json` is the persistent identity source. Each synchronized repository stores its immutable `github_id` and last `observed_visibility`; the current GitHub name is represented by optional `name`, with the stable map key retained as its Terraform identity. There is no separate repository-ID registry.
 
 When an active repository keeps the same GitHub ID but changes name, the synchronizer updates only the entry's `name`. The map key and therefore addresses such as `github_repository.repo["<stable-key>"]` remain unchanged, preserving per-repository overrides and avoiding `moved.tf` entirely.
 
-When an inventoried repository becomes archived, the synchronizer removes it from `envs/dceoy.tfvars` and generates Terraform `removed` blocks in `modules/repos/removed.tf` with `destroy = false`. The next HCP Terraform run therefore forgets the managed resource bindings without modifying or deleting the archived GitHub repository. If the repository was public at the last observation, the managed ruleset binding is removed as well. This generated file is required only because traditional Terraform cannot iterate `removed` blocks from tfvars.
+When an inventoried repository becomes archived, the synchronizer removes it from `envs/dceoy.tfvars.json` and generates Terraform `removed` blocks in `modules/repos/removed.tf` with `destroy = false`. The next HCP Terraform run therefore forgets the managed resource bindings without modifying or deleting the archived GitHub repository. If the repository was public at the last observation, the managed ruleset binding is removed as well. This generated file is required only because traditional Terraform cannot iterate `removed` blocks from tfvars.
 
-The synchronizer is fail-closed: if a tfvars `github_id` is absent from the GitHub API response, it fails instead of silently deleting the entry. This protects against an incorrectly scoped token, transfers, deletions, and transient inventory gaps. If a previously retired repository is unarchived, or a new repository attempts to reuse a stable key still referenced by an archive transition, the workflow also fails for manual reconciliation.
+The synchronizer is fail-closed: if a JSON tfvars `github_id` is absent from the GitHub API response, it fails instead of silently deleting the entry. This protects against an incorrectly scoped token, transfers, deletions, and transient inventory gaps. If a previously retired repository is unarchived, or a new repository attempts to reuse a stable key still referenced by an archive transition, the workflow also fails for manual reconciliation.
 
 The workflow uses `peter-evans/create-pull-request` to create or update `github-actions/repository-inventory` when changes exist and to delete the branch after the synchronization PR is closed. Because pull requests created with `GITHUB_TOKEN` do not recursively trigger other Actions workflows, the workflow explicitly dispatches the lint-and-scan CI workflow after creating or updating the synchronization PR.
 
