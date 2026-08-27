@@ -103,27 +103,29 @@ Add the target account and existing repositories explicitly to the environment J
 
 The map key is the stable Terraform identity for each repository. `name` is optional and defaults to that key. Keeping the key unchanged while updating `name` allows an externally renamed GitHub repository to remain at the same Terraform resource address without a `moved` block.
 
-`github_id` is optional synchronization metadata used to distinguish a rename from repository replacement. `observed_visibility` records the latest visibility observed by the synchronizer but does not control Terraform visibility or retirement behavior. Environments that do not use synchronization can continue to use simple `{}` entries.
+`github_id` is optional synchronization metadata used to distinguish a rename from repository replacement. `ruleset_id` is optional synchronization metadata for the managed `default-branch-protection` ruleset; when present, Terraform uses a config-driven import to recover an existing ruleset after `destroy = false` has forgotten it from state. `observed_visibility` records the latest visibility observed by the synchronizer but does not control Terraform visibility or retirement behavior. Environments that do not use synchronization can continue to use simple `{}` entries.
 
 Active inventory entries must already exist in the configured `github_owner` account and must not be archived. Terraform reads and imports each active repository automatically; a missing active repository makes synchronization fail closed rather than silently removing it.
 
+Repository names are unique across the inventory and cannot reuse another entry's stable Terraform key. This reservation applies to both active and retired entries so an external rename cannot silently alias a tombstoned state address.
+
 ### Retirement safety
 
-A repository with `retired: true` remains in the JSON inventory as a tombstone but is excluded from all Terraform `for_each` collections and imports. The tombstone preserves the immutable GitHub ID, stable Terraform key, current name, and any per-repository overrides.
+A repository with `retired: true` remains in the JSON inventory as a tombstone but is excluded from all Terraform `for_each` collections and imports. The tombstone preserves the immutable GitHub ID, stable Terraform key, current name, ruleset ID when known, and any per-repository overrides.
 
 All managed GitHub resources use Terraform 1.16 `lifecycle { destroy = false }`. When an active repository becomes retired, Terraform therefore forgets the corresponding resource instances from state without issuing destructive GitHub API calls. The `github_repository` resource also retains `prevent_destroy = true`, so replacement operations remain blocked while ordinary retirement is handled as a state-only forget.
 
-The same no-destroy policy applies when a public-only managed binding such as a ruleset leaves configuration. Terraform stops managing that binding without deleting the remote object. This deliberately favors preserving remote GitHub state over destructive cleanup.
+The same no-destroy policy applies when a public-only managed binding such as a ruleset leaves configuration. Terraform stops managing that binding without deleting the remote object. When the repository becomes public and active again, the synchronizer records the existing ruleset ID and the import block reattaches Terraform state instead of creating a duplicate ruleset.
 
 Retired tombstones reserve their stable key and repository identity. If the same GitHub repository is later unarchived, synchronization removes `retired` and restores management at the original Terraform address. If a different repository attempts to reuse a retired key or name, synchronization fails for manual reconciliation.
 
 ## Inventory synchronization
 
-`.github/workflows/sync-repositories.yml` synchronizes the `dceoy` inventory daily at 00:17 UTC and on manual dispatch. It discovers repositories owned by the authenticated user and reconciles additions, renames, archival, and reactivation through a pull request.
+`.github/workflows/sync-repositories.yml` synchronizes the `dceoy` inventory daily at 00:17 UTC and on manual dispatch. It discovers repositories owned by the authenticated user and reconciles additions, renames, archival, reactivation, and managed ruleset identity through a pull request.
 
-Configure the repository secret `GH_INVENTORY_TOKEN` with a fine-grained personal access token owned by `dceoy`. Select **All repositories** and grant only **Metadata: Read-only** repository permission so future private repositories are discoverable without giving the inventory token write access. The workflow uses the normal Actions `GITHUB_TOKEN` separately for pull-request creation.
+Configure the repository secret `GH_INVENTORY_TOKEN` with a fine-grained personal access token owned by `dceoy`. Select **All repositories** and grant only **Metadata: Read-only** repository permission so future private repositories and repository rulesets are discoverable without giving the inventory token write access. The workflow uses the normal Actions `GITHUB_TOKEN` separately for pull-request creation.
 
-The synchronizer uses immutable GitHub repository IDs as identity anchors while keeping the JSON map key stable. It preserves arbitrary per-repository overrides across renames and retirement. An active tracked GitHub ID missing from the API response causes a failure instead of deletion, protecting against incorrectly scoped tokens, transfers, deletions, and transient inventory gaps. A retired tombstone may remain when its remote repository disappears so its Terraform identity cannot be accidentally reused.
+The synchronizer uses immutable GitHub repository IDs as identity anchors while keeping the JSON map key stable. It preserves arbitrary per-repository overrides across renames and retirement. For active public repositories it also records the repository-owned `default-branch-protection` ruleset ID when one exists; an absent ruleset ID allows Terraform to create the ruleset normally. An active tracked GitHub ID missing from the API response causes a failure instead of deletion, protecting against incorrectly scoped tokens, transfers, deletions, and transient inventory gaps. A retired tombstone may remain when its remote repository disappears so its Terraform identity cannot be accidentally reused.
 
 The workflow uses `peter-evans/create-pull-request` to create or update `github-actions/repository-inventory` and to manage the synchronization branch lifecycle. CI is not explicitly dispatched by the synchronization workflow.
 
@@ -137,6 +139,6 @@ The default security policy enables Dependabot vulnerability alerts and security
 
 For public repositories, where GitHub Free supports the features, Terraform also enables Code Security, secret scanning, secret-scanning push protection, AI-based secret detection, non-provider secret patterns, and one identical default-branch ruleset per repository. The common ruleset prevents branch deletion and force pushes, requires changes through pull requests with zero mandatory approvals, and requires review threads to be resolved. Private repositories are excluded from active ruleset and public-only security configuration.
 
-The `terraform-gh-repos` ruleset was already imported by the configuration that predates this migration, so this configuration does not retain its historical ruleset ID. When onboarding another existing public repository that already has the ruleset Terraform should manage, import that ruleset into `github_repository_ruleset.branch["<stable-key>"]` once before applying rather than storing its ID in repository inventory.
+Existing repository-owned `default-branch-protection` rulesets are discovered by the inventory synchronizer and recorded as `ruleset_id`. Terraform's declarative import block then attaches the matching ruleset to `github_repository_ruleset.branch["<stable-key>"]`; no manual one-off import is required when synchronization metadata is present.
 
 Review the HCP Terraform plan before applying when first importing an existing repository because Terraform will reconcile its managed GitHub settings while leaving the repository description, website URL, topics, visibility, and archive state unchanged.
