@@ -20,6 +20,30 @@ on:
 permissions:
   contents: read
 jobs:
+  shell-lint:
+    if: >
+      github.event_name == 'push'
+      || github.event_name == 'pull_request'
+      || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+    uses: dceoy/gha-for-devops/.github/workflows/shell-lint.yml@main  # zizmor: ignore[unpinned-uses]
+    with:
+      search-path: .
+  shell-test:
+    if: >
+      github.event_name == 'push'
+      || github.event_name == 'pull_request'
+      || github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: read
+    uses: dceoy/gha-for-devops/.github/workflows/shell-project-ci.yml@main  # zizmor: ignore[unpinned-uses]
+    with:
+      search-path: .
+      command: |
+        git ls-files -z -- '*.sh' '*.bats' \
+          | xargs -0 -r shfmt --diff --indent 2 --binary-next-line --case-indent --space-redirects
+        bats .github/scripts/tests
   terraform-lint-and-scan:
     if: >
       github.event_name == 'push'
@@ -61,6 +85,8 @@ jobs:
       && github.actor == 'dependabot[bot]'
       && (! startswith(github.head_ref, 'dependabot/terraform/'))
     needs:
+      - shell-lint
+      - shell-test
       - terraform-lint-and-scan
     permissions:
       contents: write
