@@ -2,6 +2,8 @@
 
 Terraform configuration for managing GitHub repositories with HCP Terraform. The included `dceoy` environment manages repositories in the `dceoy` GitHub personal account.
 
+[![CI/CD](https://github.com/dceoy/terraform-gh-repos/actions/workflows/ci.yml/badge.svg)](https://github.com/dceoy/terraform-gh-repos/actions/workflows/ci.yml)
+
 ## Architecture
 
 ```text
