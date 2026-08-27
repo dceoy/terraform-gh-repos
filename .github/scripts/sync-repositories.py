@@ -10,6 +10,9 @@ from pathlib import Path
 
 ENTRY_RE = re.compile(r'^  "([^"]+)"\s*=\s*(.*)$')
 OWNER_RE = re.compile(r'^github_owner\s*=\s*"([^"]+)"\s*$')
+STATE_SOURCE_RE = re.compile(
+    r'(?m)^\s*from\s*=\s*\w+\.\w+\["([^"]+)"\]\s*$'
+)
 CORE_RESOURCES = [
     ("github_repository", "repo"),
     ("github_repository_vulnerability_alerts", "alerts"),
@@ -120,6 +123,15 @@ def append_sections(path: Path, header: str, sections: list[str]) -> None:
     path.write_text(existing + "\n\n" + "\n\n".join(sections) + "\n")
 
 
+def state_source_names(*paths: Path) -> set[str]:
+    return {
+        name
+        for path in paths
+        if path.exists()
+        for name in STATE_SOURCE_RE.findall(path.read_text())
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tfvars", type=Path, required=True)
@@ -172,6 +184,7 @@ def main() -> None:
     moved_sections: list[str] = []
     removed_sections: list[str] = []
     renames: list[str] = []
+    renamed_sources: set[str] = set()
     retirements: list[str] = []
 
     for repo_id, tracked in list(tracking.items()):
@@ -229,6 +242,7 @@ def main() -> None:
                 + f"\n# END repository rename: {repo_id}: {old} -> {new}"
             )
             renames.append(f"{old} -> {new}")
+            renamed_sources.add(old)
 
         tracking[repo_id] = {
             "archived": False,
@@ -241,11 +255,19 @@ def main() -> None:
         for item in tracking.values()
         if not bool(item.get("archived", False))
     }
+    reserved_names = state_source_names(args.moved_file, args.removed_file)
+    reserved_names.update(renamed_sources)
+
     untracked_inventory = sorted(set(entries) - tracked_active_names)
     for name in untracked_inventory:
         repo = by_name.get(name)
         if not repo or repo.get("archived", False):
             raise SystemExit(f"Untracked inventory repository is not active on GitHub: {name}")
+        if name in reserved_names:
+            raise SystemExit(
+                f"Repository name {name} is still referenced by a Terraform state "
+                "transition block; apply and retire that block before reusing the name"
+            )
         tracking[str(repo["id"])] = {
             "archived": False,
             "name": name,
@@ -258,6 +280,14 @@ def main() -> None:
         for repo_id, repo in by_id.items()
         if repo_id not in tracked_ids and not repo.get("archived", False)
     )
+    blocked_additions = sorted(set(additions) & reserved_names)
+    if blocked_additions:
+        raise SystemExit(
+            "Repository names are still referenced by Terraform state transition "
+            "blocks; apply and retire those blocks before reusing the names: "
+            + ", ".join(blocked_additions)
+        )
+
     for name in additions:
         repo = by_name[name]
         entries[name] = [f'  "{name}" = {{}}']
