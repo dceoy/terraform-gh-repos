@@ -22,6 +22,9 @@ Terraform manages only existing, active repositories declared in `envs/dceoy.tfv
 ## Layout
 
 ```text
+.github/
+└── repository-ids.json
+
 envs/
 └── dceoy.tfvars
 
@@ -31,8 +34,10 @@ modules/
     ├── imports.tf
     ├── locals.tf
     ├── main.tf
+    ├── moved.tf        # generated after repository renames, when needed
     ├── outputs.tf
     ├── provider.tf
+    ├── removed.tf      # generated after repository archival, when needed
     ├── variables.tf
     └── version.tf
 ```
@@ -96,13 +101,17 @@ Every inventory entry must already exist in the configured `github_owner` accoun
 
 ### Inventory synchronization
 
-`.github/workflows/sync-repositories.yml` synchronizes the `dceoy` inventory daily at 00:17 UTC and on manual dispatch. It lists repositories owned by the authenticated user, adds newly created active repositories, and removes managed repositories after they are archived.
+`.github/workflows/sync-repositories.yml` synchronizes the `dceoy` inventory daily at 00:17 UTC and on manual dispatch. It lists repositories owned by the authenticated user and reconciles newly created, renamed, and archived repositories through a pull request.
 
 Configure the repository secret `GH_INVENTORY_TOKEN` with a fine-grained personal access token owned by `dceoy`. Select **All repositories** and grant only **Metadata: Read-only** repository permission so future private repositories are discoverable without giving the inventory token write access. The workflow uses the normal Actions `GITHUB_TOKEN` separately for its automation branch and pull request.
 
+`.github/repository-ids.json` records the immutable GitHub repository ID together with the last observed name, archive state, and visibility. The synchronizer uses the ID rather than the repository name as identity, so a rename is distinguishable from deleting one repository and creating another with the old name.
+
+When an active repository keeps the same ID but changes name, the synchronizer renames the `envs/dceoy.tfvars` key and generates Terraform `moved` blocks in `modules/repos/moved.tf`. This moves the managed Terraform instances to the new `for_each` key without detaching them from the existing GitHub repository. Public repositories also move their managed ruleset instance. A rename combined with a visibility change is rejected for manual review.
+
 When an inventoried repository becomes archived, the synchronizer removes it from `envs/dceoy.tfvars` and generates Terraform `removed` blocks in `modules/repos/removed.tf` with `destroy = false`. The next HCP Terraform run therefore forgets the managed resource bindings without modifying or deleting the archived GitHub repository. Public repositories also receive a `removed` block for their managed ruleset.
 
-The synchronizer is fail-closed: if a repository already present in the inventory is absent from the GitHub API response, it fails instead of silently deleting the entry. This protects against an incorrectly scoped token and transient inventory gaps. If a previously retired repository is unarchived, the workflow also fails so any prior per-repository overrides can be restored manually before its generated `removed` blocks are removed.
+The synchronizer is fail-closed: if a tracked repository ID is absent from the GitHub API response, it fails instead of silently deleting the entry. This protects against an incorrectly scoped token, transfers, deletions, and transient inventory gaps. If a previously retired repository is unarchived, the workflow also fails so any prior per-repository overrides can be restored manually before its generated `removed` blocks are removed.
 
 The workflow opens or updates `automation/sync-repository-inventory` when changes exist and explicitly dispatches the lint-and-scan CI workflow because pull requests created with `GITHUB_TOKEN` do not recursively trigger other Actions workflows.
 
