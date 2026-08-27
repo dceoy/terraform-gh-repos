@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Synchronize a Terraform repository inventory with repositories owned on GitHub."""
+"""Synchronize a JSON Terraform repository inventory with GitHub."""
 
 from __future__ import annotations
 
@@ -8,8 +8,6 @@ import json
 import re
 from pathlib import Path
 
-ENTRY_RE = re.compile(r'^  "([^"]+)"\s*=\s*(.*)$')
-OWNER_RE = re.compile(r'^github_owner\s*=\s*"([^"]+)"\s*$')
 ARCHIVED_RE = re.compile(r"(?m)^# BEGIN archived repository: (\d+): ([^\n]+)$")
 CORE_RESOURCES = [
     ("github_repository", "repo"),
@@ -19,94 +17,35 @@ CORE_RESOURCES = [
 ]
 
 
-def parse_inventory(path: Path) -> tuple[list[str], str, dict[str, list[str]], list[str]]:
-    lines = path.read_text().splitlines()
-    owner = next(
-        (match.group(1) for line in lines if (match := OWNER_RE.match(line))),
-        None,
-    )
-    if not owner:
-        raise SystemExit(f"Could not find github_owner in {path}")
+def load_inventory(path: Path) -> tuple[dict[str, object], str, dict[str, dict[str, object]]]:
+    inventory = json.loads(path.read_text())
+    if not isinstance(inventory, dict):
+        raise SystemExit(f"{path} must contain a JSON object")
 
-    try:
-        start = next(i for i, line in enumerate(lines) if line.strip() == "repositories = {")
-    except StopIteration:
-        raise SystemExit(f"Could not find repositories map in {path}")
+    owner = inventory.get("github_owner")
+    repositories = inventory.get("repositories")
+    if not isinstance(owner, str) or not owner:
+        raise SystemExit(f"{path} must contain a non-empty github_owner string")
+    if not isinstance(repositories, dict):
+        raise SystemExit(f"{path} must contain a repositories object")
+    if not all(isinstance(key, str) and isinstance(value, dict) for key, value in repositories.items()):
+        raise SystemExit("Repository keys must be strings and values must be JSON objects")
 
-    end = next((i for i in range(start + 1, len(lines)) if lines[i] == "}"), None)
-    if end is None:
-        raise SystemExit(f"Could not find end of repositories map in {path}")
-
-    entries: dict[str, list[str]] = {}
-    current_key: str | None = None
-    for line in lines[start + 1 : end]:
-        match = ENTRY_RE.match(line)
-        if match:
-            current_key = match.group(1)
-            if current_key in entries:
-                raise SystemExit(f"Duplicate repository entry: {current_key}")
-            entries[current_key] = [line]
-        elif current_key is not None:
-            entries[current_key].append(line)
-        elif line.strip():
-            raise SystemExit(f"Unexpected content before first repository entry: {line}")
-
-    return lines[: start + 1], owner, entries, lines[end:]
+    return inventory, owner, repositories
 
 
-def format_inventory(
-    prefix: list[str], entries: dict[str, list[str]], suffix: list[str]
-) -> str:
-    width = max((len(key) for key in entries), default=0)
-    body: list[str] = []
-    for key in sorted(entries):
-        block = entries[key]
-        match = ENTRY_RE.match(block[0])
-        if not match:
-            raise SystemExit(f"Malformed repository entry: {block[0]}")
-        body.append(f'  "{key}"{" " * (width - len(key))} = {match.group(2)}')
-        body.extend(block[1:])
-    return "\n".join([*prefix, *body, *suffix]) + "\n"
+def write_inventory(
+    path: Path, inventory: dict[str, object], repositories: dict[str, dict[str, object]]
+) -> None:
+    inventory["repositories"] = dict(sorted(repositories.items()))
+    path.write_text(json.dumps(inventory, indent=2, ensure_ascii=False) + "\n")
 
 
-def field(block: list[str], name: str) -> str | None:
-    text = "\n".join(block)
-    if name in {"name", "observed_visibility"}:
-        match = re.search(rf'\b{name}\s*=\s*"([^"]+)"', text)
-    else:
-        match = re.search(rf"\b{name}\s*=\s*(\d+)", text)
-    return match.group(1) if match else None
-
-
-def set_field(block: list[str], name: str, value: str | int) -> None:
-    rendered = json.dumps(value) if isinstance(value, str) else str(value)
-    pattern = (
-        re.compile(rf'(\b{name}\s*=\s*)"[^"]*"')
-        if isinstance(value, str)
-        else re.compile(rf"(\b{name}\s*=\s*)\d+")
-    )
-    for index, line in enumerate(block):
-        if pattern.search(line):
-            block[index] = pattern.sub(rf"\g<1>{rendered}", line, count=1)
-            return
-
-    match = ENTRY_RE.match(block[0])
-    if not match:
-        raise SystemExit(f"Malformed repository entry: {block[0]}")
-    rhs = match.group(2).strip()
-    if rhs == "{}":
-        block[0] = block[0].replace("{}", f"{{ {name} = {rendered} }}", 1)
-    elif rhs.startswith("{") and rhs.endswith("}"):
-        pos = block[0].rfind("}")
-        block[0] = block[0][:pos].rstrip() + f", {name} = {rendered} " + block[0][pos:]
-    elif rhs == "{":
-        block.insert(1, f"    {name} = {rendered}")
-    else:
-        raise SystemExit(f"Cannot add {name} to repository entry: {block[0]}")
-
-
-def effective_name(key: str, block: list[str]) -> str:
-    return field(block, "name") or key
+def effective_name(key: str, entry: dict[str, object]) -> str:
+    name = entry.get("name", key)
+    if not isinstance(name, str) or not name:
+        raise SystemExit(f"Repository {key} has an invalid name")
+    return name
 
 
 def retired_repositories(path: Path) -> dict[str, str]:
@@ -156,7 +95,7 @@ def main() -> None:
     parser.add_argument("--removed-file", type=Path, required=True)
     args = parser.parse_args()
 
-    prefix, owner, entries, suffix = parse_inventory(args.tfvars)
+    inventory, owner, entries = load_inventory(args.tfvars)
     repositories = json.loads(args.repositories_json.read_text())
     if not isinstance(repositories, list):
         raise SystemExit("Repository API payload must be a JSON array")
@@ -186,17 +125,20 @@ def main() -> None:
         )
 
     tracked: dict[str, str] = {}
-    for key, block in entries.items():
-        repo_id = field(block, "github_id")
-        name = effective_name(key, block)
-        if repo_id is None:
+    for key, entry in entries.items():
+        name = effective_name(key, entry)
+        repo_id_value = entry.get("github_id")
+        if repo_id_value is None:
             repo = by_name.get(name)
             if not repo:
                 raise SystemExit(
                     f"Cannot initialize GitHub ID because repository is missing from API: {name}"
                 )
-            repo_id = str(repo["id"])
-            set_field(block, "github_id", int(repo_id))
+            repo_id_value = repo["id"]
+            entry["github_id"] = repo_id_value
+        if not isinstance(repo_id_value, int) or isinstance(repo_id_value, bool):
+            raise SystemExit(f"Repository {key} has an invalid github_id")
+        repo_id = str(repo_id_value)
         if repo_id in tracked:
             raise SystemExit(
                 f"GitHub repository ID {repo_id} is used by both {tracked[repo_id]} and {key}"
@@ -216,12 +158,10 @@ def main() -> None:
     removed_sections: list[str] = []
 
     for repo_id, key in list(tracked.items()):
-        block = entries[key]
+        entry = entries[key]
         repo = by_id[repo_id]
-        old_name = effective_name(key, block)
-        old_visibility = field(block, "observed_visibility") or repo.get(
-            "visibility", "public"
-        )
+        old_name = effective_name(key, entry)
+        old_visibility = entry.get("observed_visibility", repo.get("visibility", "public"))
         new_name = repo["name"]
         new_visibility = repo.get("visibility", "public")
 
@@ -234,10 +174,13 @@ def main() -> None:
             continue
 
         if old_name != new_name:
-            set_field(block, "name", new_name)
+            if new_name == key:
+                entry.pop("name", None)
+            else:
+                entry["name"] = new_name
             renames.append(f"{old_name} -> {new_name}")
 
-        set_field(block, "observed_visibility", new_visibility)
+        entry["observed_visibility"] = new_visibility
 
     active_ids = {
         repo_id for repo_id, repo in by_id.items() if not repo.get("archived", False)
@@ -248,19 +191,18 @@ def main() -> None:
     used_keys = set(entries) | set(retired.values())
     for name in additions:
         repo = by_name[name]
-        repo_id = str(repo["id"])
         if name in used_keys:
             raise SystemExit(
                 f"Cannot add {name}: its repository name is already used as a stable "
                 "Terraform inventory key"
             )
-        entries[name] = [
-            f'  "{name}" = {{ github_id = {repo_id}, '
-            f'observed_visibility = "{repo.get("visibility", "public")}" }}'
-        ]
+        entries[name] = {
+            "github_id": repo["id"],
+            "observed_visibility": repo.get("visibility", "public"),
+        }
         used_keys.add(name)
 
-    args.tfvars.write_text(format_inventory(prefix, entries, suffix))
+    write_inventory(args.tfvars, inventory, entries)
     append_removed(args.removed_file, removed_sections)
 
     print(f"Added: {', '.join(additions) if additions else 'none'}")
