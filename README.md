@@ -94,11 +94,23 @@ repositories = {
 
 Every inventory entry must already exist in the configured `github_owner` account and must not be archived. Terraform reads and imports each repository automatically; a missing or archived repository makes planning fail. Creating repositories through this configuration is intentionally unsupported.
 
+### Inventory synchronization
+
+`.github/workflows/sync-repositories.yml` synchronizes the `dceoy` inventory daily at 00:17 UTC and on manual dispatch. It lists repositories owned by the authenticated user, adds newly created active repositories, and removes managed repositories after they are archived.
+
+Configure the repository secret `GH_INVENTORY_TOKEN` with a fine-grained personal access token owned by `dceoy`. Select **All repositories** and grant only **Metadata: Read-only** repository permission so future private repositories are discoverable without giving the inventory token write access. The workflow uses the normal Actions `GITHUB_TOKEN` separately for its automation branch and pull request.
+
+When an inventoried repository becomes archived, the synchronizer removes it from `envs/dceoy.tfvars` and generates Terraform `removed` blocks in `modules/repos/removed.tf` with `destroy = false`. The next HCP Terraform run therefore forgets the managed resource bindings without modifying or deleting the archived GitHub repository. Public repositories also receive a `removed` block for their managed ruleset.
+
+The synchronizer is fail-closed: if a repository already present in the inventory is absent from the GitHub API response, it fails instead of silently deleting the entry. This protects against an incorrectly scoped token and transient inventory gaps. If a previously retired repository is unarchived, the workflow also fails so any prior per-repository overrides can be restored manually before its generated `removed` blocks are removed.
+
+The workflow opens or updates `automation/sync-repository-inventory` when changes exist and explicitly dispatches the lint-and-scan CI workflow because pull requests created with `GITHUB_TOKEN` do not recursively trigger other Actions workflows.
+
 Repository descriptions, website URLs, topics, visibility, and archive state are intentionally left unmanaged and retain their current GitHub values. Terraform manages repository feature and merge settings from inventory defaults/overrides where those settings are available on GitHub Free. Projects, discussions, and wikis default to disabled.
 
 For private repositories on GitHub Free, settings unavailable on that plan are preserved from their observed GitHub values rather than reconciled. In particular, wiki and auto-merge settings are retained for private repositories; public repositories continue to use the inventory defaults/overrides.
 
-Archived repositories are outside the Terraform management scope. Terraform does not preserve or reconcile settings for archived repositories. Before retiring a managed repository, remove its Terraform state bindings without destroying the remote repository and remove it from the inventory; archive it only after Terraform no longer manages it. If a repository is archived externally while it remains in the inventory, the next plan fails instead of attempting to modify the read-only repository.
+Archived repositories are outside the Terraform management scope. If a managed repository is archived externally, merge the inventory synchronization pull request before applying Terraform again so its state bindings are removed declaratively without destroying the remote repository. Manual retirement remains possible by removing the relevant Terraform state bindings without destruction and then removing the repository from the inventory before archiving it.
 
 The default security policy enables Dependabot vulnerability alerts and security updates, gives the default Actions `GITHUB_TOKEN` read-only permissions, and allows GitHub Actions to approve pull requests. Workflows that require write access must request it explicitly at workflow or job scope.
 
