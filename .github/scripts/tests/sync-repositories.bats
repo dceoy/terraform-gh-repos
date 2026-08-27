@@ -4,7 +4,6 @@ setup() {
   script="${BATS_TEST_DIRNAME}/../sync-repositories.sh"
   inventory="${BATS_TEST_TMPDIR}/inventory.json"
   api="${BATS_TEST_TMPDIR}/repositories.json"
-  removed="${BATS_TEST_TMPDIR}/removed.tf"
 }
 
 @test "adds a newly discovered repository" {
@@ -26,7 +25,7 @@ JSON
 ]
 JSON
 
-  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api" --removed-file "$removed"
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api"
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"Added: beta"* ]]
@@ -53,7 +52,7 @@ JSON
 ]
 JSON
 
-  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api" --removed-file "$removed"
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api"
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"Renamed: alpha -> renamed-alpha"* ]]
@@ -61,14 +60,15 @@ JSON
   [ "$status" -eq 0 ]
 }
 
-@test "retires an archived public repository without destruction" {
+@test "retires an archived repository while preserving its stable identity" {
   cat > "$inventory" << 'JSON'
 {
   "github_owner": "owner",
   "repositories": {
     "alpha": {
       "github_id": 1,
-      "observed_visibility": "public"
+      "observed_visibility": "public",
+      "has_issues": false
     }
   }
 }
@@ -79,46 +79,43 @@ JSON
 ]
 JSON
 
-  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api" --removed-file "$removed"
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api"
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"Archived: alpha"* ]]
-  run jq -e '.repositories == {}' "$inventory"
-  [ "$status" -eq 0 ]
-  run grep -F 'from = github_repository.repo["alpha"]' "$removed"
-  [ "$status" -eq 0 ]
-  run grep -F 'from = github_repository_ruleset.branch["alpha"]' "$removed"
-  [ "$status" -eq 0 ]
-  run grep -F 'destroy = false' "$removed"
+  run jq -e '.repositories.alpha.retired == true and .repositories.alpha.github_id == 1 and .repositories.alpha.has_issues == false' "$inventory"
   [ "$status" -eq 0 ]
 }
 
-@test "retires ruleset after visibility changes before archive" {
+@test "reactivates a retired repository by GitHub ID" {
   cat > "$inventory" << 'JSON'
 {
   "github_owner": "owner",
   "repositories": {
     "alpha": {
       "github_id": 1,
-      "observed_visibility": "private"
+      "observed_visibility": "public",
+      "retired": true,
+      "has_issues": false
     }
   }
 }
 JSON
   cat > "$api" << 'JSON'
 [
-  {"id": 1, "name": "alpha", "visibility": "private", "archived": true, "owner": {"login": "owner"}}
+  {"id": 1, "name": "renamed-alpha", "visibility": "public", "archived": false, "owner": {"login": "owner"}}
 ]
 JSON
 
-  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api" --removed-file "$removed"
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api"
 
   [ "$status" -eq 0 ]
-  run grep -F 'from = github_repository_ruleset.branch["alpha"]' "$removed"
+  [[ "$output" == *"Reactivated: renamed-alpha"* ]]
+  run jq -e '.repositories.alpha.retired == null and .repositories.alpha.name == "renamed-alpha" and .repositories.alpha.has_issues == false' "$inventory"
   [ "$status" -eq 0 ]
 }
 
-@test "fails closed when a tracked repository is missing from the API" {
+@test "fails closed when an active tracked repository is missing from the API" {
   cat > "$inventory" << 'JSON'
 {
   "github_owner": "owner",
@@ -136,10 +133,61 @@ JSON
 ]
 JSON
 
-  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api" --removed-file "$removed"
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api"
 
   [ "$status" -ne 0 ]
   [[ "$output" == *"Refusing to modify repository missing from API response: alpha (1)"* ]]
+}
+
+@test "keeps a retired tombstone when the repository disappears from the API" {
+  cat > "$inventory" << 'JSON'
+{
+  "github_owner": "owner",
+  "repositories": {
+    "alpha": {
+      "github_id": 1,
+      "observed_visibility": "public",
+      "retired": true
+    }
+  }
+}
+JSON
+  cat > "$api" << 'JSON'
+[
+  {"id": 2, "name": "beta", "visibility": "public", "archived": false, "owner": {"login": "owner"}}
+]
+JSON
+
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api"
+
+  [ "$status" -eq 0 ]
+  run jq -e '.repositories.alpha.retired == true and .repositories.alpha.github_id == 1 and .repositories.beta.github_id == 2' "$inventory"
+  [ "$status" -eq 0 ]
+}
+
+@test "rejects reuse of a retired stable key" {
+  cat > "$inventory" << 'JSON'
+{
+  "github_owner": "owner",
+  "repositories": {
+    "alpha": {
+      "github_id": 1,
+      "observed_visibility": "public",
+      "retired": true
+    }
+  }
+}
+JSON
+  cat > "$api" << 'JSON'
+[
+  {"id": 2, "name": "alpha", "visibility": "public", "archived": false, "owner": {"login": "owner"}}
+]
+JSON
+
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api"
+
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Cannot add alpha: its name or stable Terraform key is reserved by an existing inventory entry"* ]]
 }
 
 @test "discovers repositories with gh when no API fixture is supplied" {
@@ -159,7 +207,7 @@ EOF
   chmod +x "${BATS_TEST_TMPDIR}/bin/gh"
 
   run env PATH="${BATS_TEST_TMPDIR}/bin:${PATH}" GH_TOKEN=test-token \
-    bash "$script" --tfvars-json "$inventory" --removed-file "$removed"
+    bash "$script" --tfvars-json "$inventory"
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"Added: alpha"* ]]
