@@ -1,0 +1,75 @@
+---
+name: Sync repository inventory
+on:
+  schedule:
+    - cron: '17 0 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+concurrency:
+  group: sync-repository-inventory
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: List owned repositories
+        env:
+          GH_TOKEN: ${{ secrets.GH_INVENTORY_TOKEN }}
+        run: |
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo 'GH_INVENTORY_TOKEN is required to discover public and private repositories.' >&2
+            exit 1
+          fi
+          gh api --paginate '/user/repos?affiliation=owner&per_page=100' \
+            | jq -s 'add' \
+            > /tmp/repositories.json
+      - name: Synchronize inventory
+        run: |
+          python3 .github/scripts/sync-repositories.py \
+            --tfvars envs/dceoy.tfvars \
+            --repositories-json /tmp/repositories.json \
+            --removed-file modules/repos/removed.tf
+      - name: Create or update pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git diff --quiet; then
+            echo 'Repository inventory is already up to date.'
+            exit 0
+          fi
+
+          branch='automation/sync-repository-inventory'
+          git fetch origin "$branch" || true
+          git switch -C "$branch"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A -- envs/dceoy.tfvars modules/repos
+          git commit -m 'Sync repository inventory'
+          git push --force-with-lease origin "$branch"
+
+          pr_url="$(
+            gh pr list \
+              --head "$branch" \
+              --base main \
+              --state open \
+              --json url \
+              --jq '.[0].url // empty'
+          )"
+          if [[ -z "$pr_url" ]]; then
+            pr_url="$(
+              gh pr create \
+                --head "$branch" \
+                --base main \
+                --title 'chore: sync repository inventory' \
+                --body 'Synchronize `envs/dceoy.tfvars` with active repositories owned by `dceoy`. Archived managed repositories are removed from the inventory with Terraform `removed` blocks using `destroy = false` so the remote repositories are not modified.'
+            )"
+          fi
+          echo "Pull request: $pr_url"
+
+          # Pull requests created with GITHUB_TOKEN do not trigger other workflows.
+          gh workflow run ci.yml --ref "$branch" -f workflow=lint-and-scan
