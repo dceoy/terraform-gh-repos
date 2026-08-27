@@ -14,7 +14,6 @@ repositories = {
   "aws-cfn-s3-with-expiration"           = { github_id = 644384015, observed_visibility = "public" }
   "aws-cfn-vpc-for-slc"                  = { github_id = 559527219, observed_visibility = "public" }
   "clir"                                 = { github_id = 62906584, observed_visibility = "public" }
-  "cloudflare-inquiry-web-form"          = { github_id = 1125567082, observed_visibility = "public" }
   "command-template-bash"                = { github_id = 186391988, observed_visibility = "public" }
   "dceoy"                                = { github_id = 287612023, observed_visibility = "public" }
   "dceoy.github.io"                      = { github_id = 11794523, observed_visibility = "public" }
