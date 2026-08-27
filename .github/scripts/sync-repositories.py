@@ -90,12 +90,12 @@ def append_removed(path: Path, sections: list[str]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--tfvars", type=Path, required=True)
+    parser.add_argument("--tfvars-json", type=Path, required=True)
     parser.add_argument("--repositories-json", type=Path, required=True)
     parser.add_argument("--removed-file", type=Path, required=True)
     args = parser.parse_args()
 
-    inventory, owner, entries = load_inventory(args.tfvars)
+    inventory, owner, entries = load_inventory(args.tfvars_json)
     repositories = json.loads(args.repositories_json.read_text())
     if not isinstance(repositories, list):
         raise SystemExit("Repository API payload must be a JSON array")
@@ -202,7 +202,7 @@ def main() -> None:
         }
         used_keys.add(name)
 
-    write_inventory(args.tfvars, inventory, entries)
+    write_inventory(args.tfvars_json, inventory, entries)
     append_removed(args.removed_file, removed_sections)
 
     print(f"Added: {', '.join(additions) if additions else 'none'}")
