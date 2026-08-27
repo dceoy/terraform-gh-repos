@@ -107,7 +107,7 @@ Every inventory entry must already exist in the configured `github_owner` accoun
 
 `.github/workflows/sync-repositories.yml` synchronizes the `dceoy` inventory daily at 00:17 UTC and on manual dispatch. It lists repositories owned by the authenticated user and reconciles newly created, renamed, and archived repositories through a pull request.
 
-Configure the repository secret `GH_INVENTORY_TOKEN` with a fine-grained personal access token owned by `dceoy`. Select **All repositories** and grant only **Metadata: Read-only** repository permission so future private repositories are discoverable without giving the inventory token write access. The workflow uses the normal Actions `GITHUB_TOKEN` separately for its automation branch and pull request.
+Configure the repository secret `GH_INVENTORY_TOKEN` with a fine-grained personal access token owned by `dceoy`. Select **All repositories** and grant only **Metadata: Read-only** repository permission so future private repositories are discoverable without giving the inventory token write access. The workflow uses the normal Actions `GITHUB_TOKEN` separately for pull-request creation.
 
 `envs/dceoy.tfvars` is the persistent identity source. Each synchronized repository stores its immutable `github_id` and last `observed_visibility`; the current GitHub name is represented by optional `name`, with the stable map key retained as its Terraform identity. There is no separate repository-ID registry.
 
@@ -117,7 +117,7 @@ When an inventoried repository becomes archived, the synchronizer removes it fro
 
 The synchronizer is fail-closed: if a tfvars `github_id` is absent from the GitHub API response, it fails instead of silently deleting the entry. This protects against an incorrectly scoped token, transfers, deletions, and transient inventory gaps. If a previously retired repository is unarchived, or a new repository attempts to reuse a stable key still referenced by an archive transition, the workflow also fails for manual reconciliation.
 
-The workflow opens or updates `automation/sync-repository-inventory` when changes exist and explicitly dispatches the lint-and-scan CI workflow because pull requests created with `GITHUB_TOKEN` do not recursively trigger other Actions workflows. If GitHub returns to the state already represented by `main`, an existing stale synchronization PR is closed and its automation branch is deleted.
+The workflow uses `peter-evans/create-pull-request` to create or update `github-actions/repository-inventory` when changes exist and to delete the branch after the synchronization PR is closed. Because pull requests created with `GITHUB_TOKEN` do not recursively trigger other Actions workflows, the workflow explicitly dispatches the lint-and-scan CI workflow after creating or updating the synchronization PR.
 
 Repository descriptions, website URLs, topics, visibility, and archive state are intentionally left unmanaged and retain their current GitHub values. Terraform manages repository feature and merge settings from inventory defaults/overrides where those settings are available on GitHub Free. Projects, discussions, and wikis default to disabled.
 
