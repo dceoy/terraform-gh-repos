@@ -36,16 +36,30 @@ jobs:
             --tracking-file .github/repository-ids.json \
             --moved-file modules/repos/moved.tf \
             --removed-file modules/repos/removed.tf
-      - name: Create or update pull request
+      - name: Reconcile pull request
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          branch='automation/sync-repository-inventory'
+          pr_number="$(
+            gh pr list \
+              --head "$branch" \
+              --base main \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+
           if git diff --quiet; then
             echo 'Repository inventory is already up to date.'
+            if [[ -n "$pr_number" ]]; then
+              gh pr close "$pr_number" \
+                --delete-branch \
+                --comment 'Closing because the repository inventory is now up to date.'
+            fi
             exit 0
           fi
 
-          branch='automation/sync-repository-inventory'
           git fetch origin "$branch:refs/remotes/origin/$branch" || true
           git switch -C "$branch"
           git config user.name 'github-actions[bot]'
@@ -57,15 +71,7 @@ jobs:
           git commit -m 'Sync repository inventory'
           git push --force-with-lease origin "$branch"
 
-          pr_url="$(
-            gh pr list \
-              --head "$branch" \
-              --base main \
-              --state open \
-              --json url \
-              --jq '.[0].url // empty'
-          )"
-          if [[ -z "$pr_url" ]]; then
+          if [[ -z "$pr_number" ]]; then
             pr_url="$(
               gh pr create \
                 --head "$branch" \
@@ -73,6 +79,8 @@ jobs:
                 --title 'chore: sync repository inventory' \
                 --body 'Synchronize `envs/dceoy.tfvars` with repositories owned by `dceoy`. Repository IDs are tracked to detect renames, renamed Terraform instances are moved declaratively, and archived repositories are removed from state with `destroy = false`.'
             )"
+          else
+            pr_url="$(gh pr view "$pr_number" --json url --jq .url)"
           fi
           echo "Pull request: $pr_url"
 
