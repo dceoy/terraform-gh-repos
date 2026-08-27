@@ -135,8 +135,7 @@ jq -n \
           .archives += [{
             id: $id,
             key: $key,
-            name: $old_name,
-            public: (($entry.observed_visibility // $repo.visibility // "public") == "public")
+            name: $old_name
           }]
         else
           ($entry + {
@@ -206,17 +205,15 @@ if ((archive_count > 0)); then
 EOF
   fi
 
-  while IFS=$'\t' read -r repo_id key public; do
+  while IFS=$'\t' read -r repo_id key; do
     printf '\n# BEGIN archived repository: %s: %s\n' "$repo_id" "$key" >> "$removed_tmp"
     append_removed_block github_repository repo "$key"
     append_removed_block github_repository_vulnerability_alerts alerts "$key"
     append_removed_block github_repository_dependabot_security_updates dependabot "$key"
     append_removed_block github_workflow_repository_permissions actions "$key"
-    if [[ "$public" == true ]]; then
-      append_removed_block github_repository_ruleset branch "$key"
-    fi
+    append_removed_block github_repository_ruleset branch "$key"
     printf '\n# END archived repository: %s: %s\n' "$repo_id" "$key" >> "$removed_tmp"
-  done < <(jq -r '.archives[] | [.id, .key, (.public | tostring)] | @tsv' "$result_file")
+  done < <(jq -r '.archives[] | [.id, .key] | @tsv' "$result_file")
 fi
 
 mv "$inventory_file" "$tfvars_json"
