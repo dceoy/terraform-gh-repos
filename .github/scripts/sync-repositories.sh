@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: sync-repositories.sh --tfvars-json PATH --repositories-json PATH --removed-file PATH
+Usage: sync-repositories.sh --tfvars-json PATH --removed-file PATH [--repositories-json PATH]
 EOF
 }
 
@@ -32,10 +32,31 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "$tfvars_json" && -n "$repositories_json" && -n "$removed_file" ]] || {
+[[ -n "$tfvars_json" && -n "$removed_file" ]] || {
   usage >&2
   exit 2
 }
+
+result_file="$(mktemp)"
+inventory_file="$(mktemp)"
+removed_tmp="$(mktemp)"
+api_file=''
+cleanup() {
+  rm -f "$result_file" "$inventory_file" "$removed_tmp"
+  [[ -z "$api_file" ]] || rm -f "$api_file"
+}
+trap cleanup EXIT
+
+if [[ -z "$repositories_json" ]]; then
+  [[ -n "${GH_TOKEN:-}" ]] || {
+    echo 'GH_TOKEN is required to discover public and private repositories.' >&2
+    exit 1
+  }
+  api_file="$(mktemp)"
+  gh api --paginate '/user/repos?affiliation=owner&per_page=100' \
+    | jq -s 'add' > "$api_file"
+  repositories_json="$api_file"
+fi
 
 jq -e 'type == "object" and (.github_owner | type == "string" and length > 0) and (.repositories | type == "object" and all(.[]; type == "object"))' "$tfvars_json" >/dev/null
 jq -e 'type == "array"' "$repositories_json" >/dev/null
@@ -48,14 +69,9 @@ if [[ -f "$removed_file" ]]; then
     repo_id=${transition%%:*}
     key=${transition#*: }
     [[ "$repo_id" =~ ^[0-9]+$ ]] || continue
-    retired="$(jq -c --arg id "$repo_id" --arg key "$key" '. + {($id): $key}' <<<"$retired")"
+    retired="$(jq -c --arg id "$repo_id" --arg key "$key" '. + {($id): $key}' <<< "$retired")"
   done < "$removed_file"
 fi
-
-result_file="$(mktemp)"
-inventory_file="$(mktemp)"
-removed_tmp="$(mktemp)"
-trap 'rm -f "$result_file" "$inventory_file" "$removed_tmp"' EXIT
 
 jq -n \
   --slurpfile inventory "$tfvars_json" \
@@ -88,7 +104,7 @@ jq -n \
   | if ($reactivated | length) > 0 then
       fail("Previously retired repositories became active; restore their tfvars entries and remove the corresponding removed blocks manually: \($reactivated | sort | join(", "))")
     else . end
-  | reduce ($inventory.repositories | to_entries[]) as $item (
+  | (reduce ($inventory.repositories | to_entries[]) as $item (
       {entries: {}, tracked: {}, renames: [], archives: [], additions: []};
       ($item.key) as $key
       | ($item.value) as $entry
@@ -136,7 +152,7 @@ jq -n \
               .renames += ["\($old_name) -> \($repo.name)"]
             else . end
         end
-    ) as $state
+    )) as $state
   | ($retired | to_entries | map(.value)) as $retired_keys
   | reduce (
       $owned[]
