@@ -23,8 +23,13 @@ variable "github_app_pem_file" {
 }
 
 variable "repositories" {
-  description = "Existing active repositories managed by this Terraform configuration."
+  description = "Repositories tracked by this Terraform configuration. Map keys are stable Terraform identities; retired entries are retained as tombstones but excluded from management."
   type = map(object({
+    github_id                        = optional(number)
+    ruleset_id                       = optional(number)
+    name                             = optional(string)
+    observed_visibility              = optional(string)
+    retired                          = optional(bool, false)
     has_issues                       = optional(bool, true)
     has_discussions                  = optional(bool, false)
     has_projects                     = optional(bool, false)
@@ -41,6 +46,57 @@ variable "repositories" {
     dependabot_security_updates      = optional(bool, true)
   }))
   default = {}
+  validation {
+    condition = length(distinct([
+      for key, repo in var.repositories : coalesce(repo.name, key)
+    ])) == length(var.repositories)
+    error_message = "Repository names must be unique."
+  }
+  validation {
+    condition = alltrue([
+      for key, repo in var.repositories :
+      repo.name == null || repo.name == key || !contains(keys(var.repositories), repo.name)
+    ])
+    error_message = "Repository names must not reuse another stable Terraform key."
+  }
+  validation {
+    condition = length([
+      for repo in values(var.repositories) : repo.github_id
+      if repo.github_id != null
+      ]) == length(distinct([
+        for repo in values(var.repositories) : repo.github_id
+        if repo.github_id != null
+    ]))
+    error_message = "GitHub repository IDs must be unique when set."
+  }
+  validation {
+    condition = alltrue([
+      for repo in values(var.repositories) :
+      repo.ruleset_id == null || (repo.ruleset_id > 0 && floor(repo.ruleset_id) == repo.ruleset_id)
+    ])
+    error_message = "Ruleset IDs must be positive integers when set."
+  }
+  validation {
+    condition = alltrue([
+      for repo in values(var.repositories) :
+      repo.name == null || length(trimspace(repo.name)) > 0
+    ])
+    error_message = "Repository names must not be empty when set."
+  }
+  validation {
+    condition = alltrue([
+      for repo in values(var.repositories) :
+      repo.observed_visibility == null || contains(["public", "private", "internal"], repo.observed_visibility)
+    ])
+    error_message = "Observed repository visibility must be public, private, or internal when set."
+  }
+  validation {
+    condition = alltrue([
+      for repo in values(var.repositories) :
+      !repo.retired || repo.github_id != null
+    ])
+    error_message = "Retired repository tombstones require github_id."
+  }
   validation {
     condition = alltrue([
       for repo in values(var.repositories) :

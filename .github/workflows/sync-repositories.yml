@@ -1,0 +1,42 @@
+---
+name: Sync repository inventory
+on:
+  schedule:
+    - cron: '17 0 * * *'
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+    working-directory: .
+concurrency:
+  group: sync-repository-inventory
+  cancel-in-progress: false
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Synchronize inventory
+        env:
+          GH_TOKEN: ${{ secrets.GH_INVENTORY_TOKEN }}
+        run: >
+          bash .github/scripts/sync-repositories.sh
+          --tfvars-json envs/dceoy.tfvars.json
+      - name: Create pull request
+        id: create-pull-request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1  # v8.1.1
+        with:
+          token: ${{ github.token }}
+          commit-message: Sync repository inventory
+          title: Sync repository inventory
+          branch: github-actions/repository-inventory
+          base: ${{ github.event.repository.default_branch }}
+          body: Synchronize `envs/dceoy.tfvars.json` with repositories owned by `dceoy`.
+          delete-branch: true
