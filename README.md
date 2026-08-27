@@ -17,7 +17,7 @@ HCP Terraform
 GitHub API
 ```
 
-Terraform manages only existing, active repositories declared in `envs/dceoy.tfvars.json`. The included `dceoy` inventory declares all currently unarchived repositories in the account, so applying it reconciles the managed settings across that inventory. Repository creation and archived repositories are intentionally out of scope.
+Terraform manages existing, active repositories declared in `envs/dceoy.tfvars.json`. Repository creation and destructive retirement are intentionally out of scope.
 
 ## Layout
 
@@ -33,12 +33,11 @@ modules/
     ├── main.tf
     ├── outputs.tf
     ├── provider.tf
-    ├── removed.tf      # generated only while an archive state transition is pending
     ├── variables.tf
     └── version.tf
 ```
 
-`modules/repos` contains no persistent `dceoy`-specific repository inventory. Repository identity and synchronization metadata live in the selected JSON tfvars file, which can be updated deterministically without parsing HCL. `removed.tf` is an exceptional generated state-transition artifact: traditional Terraform `removed` blocks require explicit resource addresses and cannot be driven by `for_each` or input variables.
+`modules/repos` contains no persistent `dceoy`-specific repository list. Repository identity and synchronization metadata live in the selected JSON tfvars file.
 
 ## HCP Terraform
 
@@ -66,6 +65,9 @@ Create a VCS-driven workspace with:
 - VCS repository: `dceoy/terraform-gh-repos`
 - Terraform working directory: `modules/repos`
 - Execution mode: Remote
+- Terraform version: `>= 1.16.0`
+
+Terraform 1.16 is required because managed resources use `lifecycle { destroy = false }` so instances removed from `for_each` are forgotten from state instead of destroyed remotely.
 
 Configure these environment variables so Terraform loads the environment-specific variable file for both planning and applying:
 
@@ -84,13 +86,14 @@ Do not set `GITHUB_OWNER`; the owner is configured by the required Terraform var
 
 ## Repository inventory
 
-Add the target account and existing active repositories explicitly to the environment JSON tfvars file:
+Add the target account and existing repositories explicitly to the environment JSON tfvars file:
 
 ```json
 {
   "github_owner": "example",
   "repositories": {
     "stable-key": {
+      "github_id": 123456789,
       "name": "current-repository-name"
     },
     "another-repository": {}
@@ -100,35 +103,39 @@ Add the target account and existing active repositories explicitly to the enviro
 
 The map key is the stable Terraform identity for each repository. `name` is optional and defaults to that key. Keeping the key unchanged while updating `name` allows an externally renamed GitHub repository to remain at the same Terraform resource address without a `moved` block.
 
-`github_id` and `observed_visibility` are optional synchronization metadata and are ignored when deciding the repository's managed visibility. They allow an inventory synchronizer to distinguish a rename from repository replacement and to remember whether a public-only ruleset existed before archival. Environments that do not use the synchronizer can continue to use simple `{}` entries.
+`github_id` is optional synchronization metadata used to distinguish a rename from repository replacement. `observed_visibility` records the latest visibility observed by the synchronizer but does not control Terraform visibility or retirement behavior. Environments that do not use synchronization can continue to use simple `{}` entries.
 
-Every inventory entry must already exist in the configured `github_owner` account and must not be archived. Terraform reads and imports each repository automatically; a missing or archived repository makes planning fail. Creating repositories through this configuration is intentionally unsupported.
+Active inventory entries must already exist in the configured `github_owner` account and must not be archived. Terraform reads and imports each active repository automatically; a missing active repository makes synchronization fail closed rather than silently removing it.
 
-### Inventory synchronization
+### Retirement safety
 
-`.github/workflows/sync-repositories.yml` synchronizes the `dceoy` inventory daily at 00:17 UTC and on manual dispatch. It lists repositories owned by the authenticated user and reconciles newly created, renamed, and archived repositories through a pull request.
+A repository with `retired: true` remains in the JSON inventory as a tombstone but is excluded from all Terraform `for_each` collections and imports. The tombstone preserves the immutable GitHub ID, stable Terraform key, current name, and any per-repository overrides.
+
+All managed GitHub resources use Terraform 1.16 `lifecycle { destroy = false }`. When an active repository becomes retired, Terraform therefore forgets the corresponding resource instances from state without issuing destructive GitHub API calls. The `github_repository` resource also retains `prevent_destroy = true`, so replacement operations remain blocked while ordinary retirement is handled as a state-only forget.
+
+The same no-destroy policy applies when a public-only managed binding such as a ruleset leaves configuration. Terraform stops managing that binding without deleting the remote object. This deliberately favors preserving remote GitHub state over destructive cleanup.
+
+Retired tombstones reserve their stable key and repository identity. If the same GitHub repository is later unarchived, synchronization removes `retired` and restores management at the original Terraform address. If a different repository attempts to reuse a retired key or name, synchronization fails for manual reconciliation.
+
+## Inventory synchronization
+
+`.github/workflows/sync-repositories.yml` synchronizes the `dceoy` inventory daily at 00:17 UTC and on manual dispatch. It discovers repositories owned by the authenticated user and reconciles additions, renames, archival, and reactivation through a pull request.
 
 Configure the repository secret `GH_INVENTORY_TOKEN` with a fine-grained personal access token owned by `dceoy`. Select **All repositories** and grant only **Metadata: Read-only** repository permission so future private repositories are discoverable without giving the inventory token write access. The workflow uses the normal Actions `GITHUB_TOKEN` separately for pull-request creation.
 
-`envs/dceoy.tfvars.json` is the persistent identity source. Each synchronized repository stores its immutable `github_id` and last `observed_visibility`; the current GitHub name is represented by optional `name`, with the stable map key retained as its Terraform identity. There is no separate repository-ID registry.
+The synchronizer uses immutable GitHub repository IDs as identity anchors while keeping the JSON map key stable. It preserves arbitrary per-repository overrides across renames and retirement. An active tracked GitHub ID missing from the API response causes a failure instead of deletion, protecting against incorrectly scoped tokens, transfers, deletions, and transient inventory gaps. A retired tombstone may remain when its remote repository disappears so its Terraform identity cannot be accidentally reused.
 
-When an active repository keeps the same GitHub ID but changes name, the synchronizer updates only the entry's `name`. The map key and therefore addresses such as `github_repository.repo["<stable-key>"]` remain unchanged, preserving per-repository overrides and avoiding `moved.tf` entirely.
+The workflow uses `peter-evans/create-pull-request` to create or update `github-actions/repository-inventory` and to manage the synchronization branch lifecycle. CI is not explicitly dispatched by the synchronization workflow.
 
-When an inventoried repository becomes archived, the synchronizer removes it from `envs/dceoy.tfvars.json` and generates Terraform `removed` blocks in `modules/repos/removed.tf` with `destroy = false`. The next HCP Terraform run therefore forgets the managed resource bindings without modifying or deleting the archived GitHub repository. If the repository was public at the last observation, the managed ruleset binding is removed as well. This generated file is required only because traditional Terraform cannot iterate `removed` blocks from tfvars.
-
-The synchronizer is fail-closed: if a JSON tfvars `github_id` is absent from the GitHub API response, it fails instead of silently deleting the entry. This protects against an incorrectly scoped token, transfers, deletions, and transient inventory gaps. If a previously retired repository is unarchived, or a new repository attempts to reuse a stable key still referenced by an archive transition, the workflow also fails for manual reconciliation.
-
-The workflow uses `peter-evans/create-pull-request` to create or update `github-actions/repository-inventory` when changes exist and to delete the branch after the synchronization PR is closed. Because pull requests created with `GITHUB_TOKEN` do not recursively trigger other Actions workflows, the workflow explicitly dispatches the lint-and-scan CI workflow after creating or updating the synchronization PR.
+## Managed settings
 
 Repository descriptions, website URLs, topics, visibility, and archive state are intentionally left unmanaged and retain their current GitHub values. Terraform manages repository feature and merge settings from inventory defaults/overrides where those settings are available on GitHub Free. Projects, discussions, and wikis default to disabled.
 
 For private repositories on GitHub Free, settings unavailable on that plan are preserved from their observed GitHub values rather than reconciled. In particular, wiki and auto-merge settings are retained for private repositories; public repositories continue to use the inventory defaults/overrides.
 
-Archived repositories are outside the Terraform management scope. If a managed repository is archived externally, merge the inventory synchronization pull request before applying Terraform again so its state bindings are removed declaratively without destroying the remote repository. Manual retirement remains possible by removing the relevant Terraform state bindings without destruction and then removing the repository from the inventory before archiving it.
-
 The default security policy enables Dependabot vulnerability alerts and security updates, gives the default Actions `GITHUB_TOKEN` read-only permissions, and allows GitHub Actions to approve pull requests. Workflows that require write access must request it explicitly at workflow or job scope.
 
-For public repositories, where GitHub Free supports the features, Terraform also enables Code Security, secret scanning, secret-scanning push protection, AI-based secret detection, non-provider secret patterns, and one identical default-branch ruleset per repository. The common ruleset prevents branch deletion and force pushes, requires changes through pull requests with zero mandatory approvals, and requires review threads to be resolved. Private repositories are excluded from ruleset and public-only security configuration.
+For public repositories, where GitHub Free supports the features, Terraform also enables Code Security, secret scanning, secret-scanning push protection, AI-based secret detection, non-provider secret patterns, and one identical default-branch ruleset per repository. The common ruleset prevents branch deletion and force pushes, requires changes through pull requests with zero mandatory approvals, and requires review threads to be resolved. Private repositories are excluded from active ruleset and public-only security configuration.
 
 The `terraform-gh-repos` ruleset was already imported by the configuration that predates this migration, so this configuration does not retain its historical ruleset ID. When onboarding another existing public repository that already has the ruleset Terraform should manage, import that ruleset into `github_repository_ruleset.branch["<stable-key>"]` once before applying rather than storing its ID in repository inventory.
 
