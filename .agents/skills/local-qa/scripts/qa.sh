@@ -45,3 +45,7 @@ trivy filesystem --scanners vuln,secret,misconfig \
   --skip-dirs .terraform \
   --skip-dirs .git \
   .
+
+# All tracked Bats regression suites.
+git ls-files -z -- '*.bats' \
+  | xargs -0 -t bats
