@@ -78,8 +78,15 @@ def load_tracking(path: Path) -> dict[str, dict[str, object]]:
 
 
 def write_tracking(path: Path, tracking: dict[str, dict[str, object]]) -> None:
+    repo_ids = sorted(tracking)
+    lines = ["{"]
+    for index, repo_id in enumerate(repo_ids):
+        comma = "," if index + 1 < len(repo_ids) else ""
+        value = json.dumps(tracking[repo_id], sort_keys=True)
+        lines.append(f"  {json.dumps(repo_id)}: {value}{comma}")
+    lines.append("}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(tracking, indent=2, sort_keys=True) + "\n")
+    path.write_text("\n".join(lines) + "\n")
 
 
 def state_blocks(kind: str, old: str, new: str | None, public: bool) -> str:
