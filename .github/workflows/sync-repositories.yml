@@ -37,7 +37,7 @@ jobs:
             > /tmp/repositories.json
       - name: Synchronize inventory
         run: >
-          python3 .github/scripts/sync-repositories.py
+          bash .github/scripts/sync-repositories.sh
           --tfvars-json envs/dceoy.tfvars.json
           --repositories-json /tmp/repositories.json
           --removed-file modules/repos/removed.tf
