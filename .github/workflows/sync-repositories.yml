@@ -8,6 +8,10 @@ permissions:
   contents: write
   pull-requests: write
   actions: write
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+    working-directory: .
 concurrency:
   group: sync-repository-inventory
   cancel-in-progress: false
@@ -15,8 +19,11 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
+      - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
       - name: List owned repositories
         env:
           GH_TOKEN: ${{ secrets.GH_INVENTORY_TOKEN }}
@@ -29,55 +36,29 @@ jobs:
             | jq -s 'add' \
             > /tmp/repositories.json
       - name: Synchronize inventory
-        run: |
-          python3 .github/scripts/sync-repositories.py \
-            --tfvars envs/dceoy.tfvars \
-            --repositories-json /tmp/repositories.json \
-            --removed-file modules/repos/removed.tf
-      - name: Reconcile pull request
+        run: >
+          python3 .github/scripts/sync-repositories.py
+          --tfvars envs/dceoy.tfvars
+          --repositories-json /tmp/repositories.json
+          --removed-file modules/repos/removed.tf
+      - name: Create pull request
+        id: create-pull-request
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1  # v8.1.1
+        with:
+          token: ${{ github.token }}
+          commit-message: Sync repository inventory
+          title: Sync repository inventory
+          branch: github-actions/repository-inventory
+          base: ${{ github.event.repository.default_branch }}
+          body: Synchronize `envs/dceoy.tfvars` with active repositories owned by `dceoy`.
+          delete-branch: true
+      - name: Dispatch CI
+        if: >-
+          steps.create-pull-request.outputs.pull-request-operation == 'created' ||
+          steps.create-pull-request.outputs.pull-request-operation == 'updated'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          branch='automation/sync-repository-inventory'
-          pr_number="$(
-            gh pr list \
-              --head "$branch" \
-              --base main \
-              --state open \
-              --json number \
-              --jq '.[0].number // empty'
-          )"
-
-          if git diff --quiet; then
-            echo 'Repository inventory is already up to date.'
-            if [[ -n "$pr_number" ]]; then
-              gh pr close "$pr_number" \
-                --delete-branch \
-                --comment 'Closing because the repository inventory is now up to date.'
-            fi
-            exit 0
-          fi
-
-          git fetch origin "$branch:refs/remotes/origin/$branch" || true
-          git switch -C "$branch"
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A -- envs/dceoy.tfvars modules/repos
-          git commit -m 'Sync repository inventory'
-          git push --force-with-lease origin "$branch"
-
-          if [[ -z "$pr_number" ]]; then
-            pr_url="$(
-              gh pr create \
-                --head "$branch" \
-                --base main \
-                --title 'chore: sync repository inventory' \
-                --body 'Synchronize `envs/dceoy.tfvars` with repositories owned by `dceoy`. Stable tfvars keys and GitHub repository IDs preserve Terraform addresses across renames; archived repositories are removed from state with `destroy = false`.'
-            )"
-          else
-            pr_url="$(gh pr view "$pr_number" --json url --jq .url)"
-          fi
-          echo "Pull request: $pr_url"
-
-          # Pull requests created with GITHUB_TOKEN do not trigger other workflows.
-          gh workflow run ci.yml --ref "$branch" -f workflow=lint-and-scan
+        run: >
+          gh workflow run ci.yml
+          --ref github-actions/repository-inventory
+          -f workflow=lint-and-scan
