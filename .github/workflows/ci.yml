@@ -30,46 +30,17 @@ jobs:
     uses: dceoy/gha-for-devops/.github/workflows/shell-lint.yml@main  # zizmor: ignore[unpinned-uses]
     with:
       search-path: .
-  shell-test:
+  bats-test:
     if: >
       github.event_name == 'push'
       || github.event_name == 'pull_request'
       || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
     permissions:
       contents: read
-    env:
-      SHFMT_VERSION: v3.13.1
-      SHFMT_SHA256: fb096c5d1ac6beabbdbaa2874d025badb03ee07929f0c9ff67563ce8c75398b1
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install shfmt
-        env:
-          SHFMT_VERSION: ${{ env.SHFMT_VERSION }}
-          SHFMT_SHA256: ${{ env.SHFMT_SHA256 }}
-        run: |
-          asset="shfmt_${SHFMT_VERSION}_linux_amd64"
-          curl --fail --location --silent --show-error \
-            --output "${RUNNER_TEMP}/${asset}" \
-            "https://github.com/mvdan/sh/releases/download/${SHFMT_VERSION}/${asset}"
-          printf '%s  %s\n' "${SHFMT_SHA256}" "${RUNNER_TEMP}/${asset}" \
-            | sha256sum --check --strict -
-          install -m 0755 "${RUNNER_TEMP}/${asset}" "${RUNNER_TEMP}/shfmt"
-          echo "${RUNNER_TEMP}" >> "${GITHUB_PATH}"
-      - name: Set up Bats
-        uses: bats-core/bats-action@77d6fb60505b4d0d1d73e48bd035b55074bbfb43  # 4.0.0
-        with:
-          bats-version: 1.14.0
-      - name: Check shell formatting
-        run: >
-          git ls-files -z -- '*.sh' '*.bats'
-          | xargs -0 -r shfmt --diff --indent 2 --binary-next-line --case-indent --space-redirects
-      - name: Run Bats tests
-        run: >
-          bats .github/scripts/tests
+    uses: dceoy/gha-for-devops/.github/workflows/bats-test.yml@main  # zizmor: ignore[unpinned-uses]
+    with:
+      search-path: .
+      pnpm-version: latest
   terraform-lint-and-scan:
     if: >
       github.event_name == 'push'
@@ -112,7 +83,7 @@ jobs:
       && (! startswith(github.head_ref, 'dependabot/terraform/'))
     needs:
       - shell-lint
-      - shell-test
+      - bats-test
       - terraform-lint-and-scan
     permissions:
       contents: write
