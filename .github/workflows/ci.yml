@@ -40,7 +40,6 @@ jobs:
     uses: dceoy/gha-for-devops/.github/workflows/bats-test.yml@main  # zizmor: ignore[unpinned-uses]
     with:
       search-path: .
-      pnpm-version: latest
   terraform-lint-and-scan:
     if: >
       github.event_name == 'push'
