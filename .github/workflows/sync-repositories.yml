@@ -33,8 +33,6 @@ jobs:
           python3 .github/scripts/sync-repositories.py \
             --tfvars envs/dceoy.tfvars \
             --repositories-json /tmp/repositories.json \
-            --tracking-file .github/repository-ids.json \
-            --moved-file modules/repos/moved.tf \
             --removed-file modules/repos/removed.tf
       - name: Reconcile pull request
         env:
@@ -64,10 +62,7 @@ jobs:
           git switch -C "$branch"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A -- \
-            .github/repository-ids.json \
-            envs/dceoy.tfvars \
-            modules/repos
+          git add -A -- envs/dceoy.tfvars modules/repos
           git commit -m 'Sync repository inventory'
           git push --force-with-lease origin "$branch"
 
@@ -77,7 +72,7 @@ jobs:
                 --head "$branch" \
                 --base main \
                 --title 'chore: sync repository inventory' \
-                --body 'Synchronize `envs/dceoy.tfvars` with repositories owned by `dceoy`. Repository IDs are tracked to detect renames, renamed Terraform instances are moved declaratively, and archived repositories are removed from state with `destroy = false`.'
+                --body 'Synchronize `envs/dceoy.tfvars` with repositories owned by `dceoy`. Stable tfvars keys and GitHub repository IDs preserve Terraform addresses across renames; archived repositories are removed from state with `destroy = false`.'
             )"
           else
             pr_url="$(gh pr view "$pr_number" --json url --jq .url)"
