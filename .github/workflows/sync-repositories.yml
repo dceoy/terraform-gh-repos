@@ -44,7 +44,7 @@ jobs:
           fi
 
           branch='automation/sync-repository-inventory'
-          git fetch origin "$branch" || true
+          git fetch origin "$branch:refs/remotes/origin/$branch" || true
           git switch -C "$branch"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
