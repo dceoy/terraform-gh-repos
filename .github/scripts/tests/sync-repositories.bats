@@ -264,8 +264,8 @@ JSON
 #!/usr/bin/env bash
 set -euo pipefail
 case "$*" in
-  'api --paginate /user/repos?affiliation=owner&per_page=100')
-    printf '%s\n' '[{"id": 1, "name": "alpha", "visibility": "public", "archived": false, "owner": {"login": "owner"}}]'
+  'api --paginate /installation/repositories?per_page=100')
+    printf '%s\n' '{"total_count": 1, "repositories": [{"id": 1, "name": "alpha", "visibility": "public", "archived": false, "owner": {"login": "owner"}}]}'
     ;;
   'api --paginate /repos/owner/alpha/rulesets?per_page=100')
     printf '%s\n' '[{"id": 99, "name": "default-branch-protection", "target": "branch", "source_type": "Repository"}]'
