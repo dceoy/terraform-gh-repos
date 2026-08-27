@@ -26,6 +26,7 @@ variable "repositories" {
   description = "Repositories tracked by this Terraform configuration. Map keys are stable Terraform identities; retired entries are retained as tombstones but excluded from management."
   type = map(object({
     github_id                        = optional(number)
+    ruleset_id                       = optional(number)
     name                             = optional(string)
     observed_visibility              = optional(string)
     retired                          = optional(bool, false)
@@ -52,6 +53,13 @@ variable "repositories" {
     error_message = "Repository names must be unique."
   }
   validation {
+    condition = alltrue([
+      for key, repo in var.repositories :
+      repo.name == null || repo.name == key || !contains(keys(var.repositories), repo.name)
+    ])
+    error_message = "Repository names must not reuse another stable Terraform key."
+  }
+  validation {
     condition = length([
       for repo in values(var.repositories) : repo.github_id
       if repo.github_id != null
@@ -60,6 +68,13 @@ variable "repositories" {
         if repo.github_id != null
     ]))
     error_message = "GitHub repository IDs must be unique when set."
+  }
+  validation {
+    condition = alltrue([
+      for repo in values(var.repositories) :
+      repo.ruleset_id == null || (repo.ruleset_id > 0 && floor(repo.ruleset_id) == repo.ruleset_id)
+    ])
+    error_message = "Ruleset IDs must be positive integers when set."
   }
   validation {
     condition = alltrue([
