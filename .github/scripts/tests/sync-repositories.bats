@@ -8,7 +8,7 @@ setup() {
 }
 
 @test "adds a newly discovered repository" {
-  cat > "$inventory" <<'JSON'
+  cat > "$inventory" << 'JSON'
 {
   "github_owner": "owner",
   "repositories": {
@@ -19,7 +19,7 @@ setup() {
   }
 }
 JSON
-  cat > "$api" <<'JSON'
+  cat > "$api" << 'JSON'
 [
   {"id": 1, "name": "alpha", "visibility": "public", "archived": false, "owner": {"login": "owner"}},
   {"id": 2, "name": "beta", "visibility": "private", "archived": false, "owner": {"login": "owner"}}
@@ -35,7 +35,7 @@ JSON
 }
 
 @test "tracks a rename by GitHub ID and preserves overrides" {
-  cat > "$inventory" <<'JSON'
+  cat > "$inventory" << 'JSON'
 {
   "github_owner": "owner",
   "repositories": {
@@ -47,7 +47,7 @@ JSON
   }
 }
 JSON
-  cat > "$api" <<'JSON'
+  cat > "$api" << 'JSON'
 [
   {"id": 1, "name": "renamed-alpha", "visibility": "public", "archived": false, "owner": {"login": "owner"}}
 ]
@@ -62,7 +62,7 @@ JSON
 }
 
 @test "retires an archived public repository without destruction" {
-  cat > "$inventory" <<'JSON'
+  cat > "$inventory" << 'JSON'
 {
   "github_owner": "owner",
   "repositories": {
@@ -73,7 +73,7 @@ JSON
   }
 }
 JSON
-  cat > "$api" <<'JSON'
+  cat > "$api" << 'JSON'
 [
   {"id": 1, "name": "alpha", "visibility": "public", "archived": true, "owner": {"login": "owner"}}
 ]
@@ -94,7 +94,7 @@ JSON
 }
 
 @test "fails closed when a tracked repository is missing from the API" {
-  cat > "$inventory" <<'JSON'
+  cat > "$inventory" << 'JSON'
 {
   "github_owner": "owner",
   "repositories": {
@@ -105,7 +105,7 @@ JSON
   }
 }
 JSON
-  cat > "$api" <<'JSON'
+  cat > "$api" << 'JSON'
 [
   {"id": 2, "name": "beta", "visibility": "public", "archived": false, "owner": {"login": "owner"}}
 ]
@@ -118,14 +118,14 @@ JSON
 }
 
 @test "discovers repositories with gh when no API fixture is supplied" {
-  cat > "$inventory" <<'JSON'
+  cat > "$inventory" << 'JSON'
 {
   "github_owner": "owner",
   "repositories": {}
 }
 JSON
   mkdir -p "${BATS_TEST_TMPDIR}/bin"
-  cat > "${BATS_TEST_TMPDIR}/bin/gh" <<'EOF'
+  cat > "${BATS_TEST_TMPDIR}/bin/gh" << 'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 [[ "$*" == "api --paginate /user/repos?affiliation=owner&per_page=100" ]]
