@@ -4,12 +4,13 @@ set -euo pipefail
 
 usage() {
   cat << 'EOF'
-Usage: sync-repositories.sh --tfvars-json PATH [--repositories-json PATH]
+Usage: sync-repositories.sh --tfvars-json PATH [--repositories-json PATH] [--rulesets-json PATH]
 EOF
 }
 
 tfvars_json=''
 repositories_json=''
+rulesets_json=''
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tfvars-json)
@@ -18,6 +19,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --repositories-json)
       repositories_json="$2"
+      shift 2
+      ;;
+    --rulesets-json)
+      rulesets_json="$2"
       shift 2
       ;;
     *)
@@ -32,12 +37,17 @@ done
   exit 2
 }
 
+jq -e 'type == "object" and (.github_owner | type == "string" and length > 0) and (.repositories | type == "object" and all(.[]; type == "object"))' "$tfvars_json" > /dev/null
+owner="$(jq -r '.github_owner' "$tfvars_json")"
+
 result_file="$(mktemp)"
 inventory_file="$(mktemp)"
 api_file=''
+rulesets_file=''
 cleanup() {
   rm -f "$result_file" "$inventory_file"
   [[ -z "$api_file" ]] || rm -f "$api_file"
+  [[ -z "$rulesets_file" ]] || rm -f "$rulesets_file"
 }
 trap cleanup EXIT
 
@@ -52,18 +62,70 @@ if [[ -z "$repositories_json" ]]; then
   repositories_json="$api_file"
 fi
 
-jq -e 'type == "object" and (.github_owner | type == "string" and length > 0) and (.repositories | type == "object" and all(.[]; type == "object"))' "$tfvars_json" > /dev/null
 jq -e 'type == "array"' "$repositories_json" > /dev/null
+
+if [[ -z "$rulesets_json" ]]; then
+  rulesets_file="$(mktemp)"
+  printf '{}\n' > "$rulesets_file"
+  rulesets_json="$rulesets_file"
+
+  if [[ -n "${GH_TOKEN:-}" && -n "$api_file" ]]; then
+    while IFS=$'\t' read -r repo_id repo_name; do
+      ruleset_id="$(
+        gh api --paginate "/repos/${owner}/${repo_name}/rulesets?per_page=100" \
+          | jq -s '
+              add
+              | [
+                  .[]
+                  | select(.source_type == "Repository")
+                  | select(.name == "default-branch-protection")
+                  | select(.target == "branch")
+                ]
+              | if length > 1 then
+                  error("multiple default-branch-protection rulesets found")
+                elif length == 1 then .[0].id
+                else null end
+            '
+      )"
+      jq --arg id "$repo_id" --argjson ruleset_id "$ruleset_id" \
+        '. + {($id): $ruleset_id}' "$rulesets_json" > "$result_file"
+      mv "$result_file" "$rulesets_json"
+      result_file="$(mktemp)"
+    done < <(
+      jq -r --arg owner "$owner" '
+        .[]
+        | select(.owner.login == $owner)
+        | select(.archived != true and .visibility == "public")
+        | [.id, .name]
+        | @tsv
+      ' "$repositories_json"
+    )
+  fi
+fi
+
+jq -e 'type == "object" and all(to_entries[]; (.value == null) or (.value | type == "number"))' "$rulesets_json" > /dev/null
 
 jq -n \
   --slurpfile inventory "$tfvars_json" \
-  --slurpfile api "$repositories_json" '
+  --slurpfile api "$repositories_json" \
+  --slurpfile rulesets "$rulesets_json" '
   def fail($message): error($message);
   def repo_name($key; $entry):
     ($entry.name // $key) as $name
     | if ($name | type) != "string" or ($name | length) == 0 then
         fail("Repository \($key) has an invalid name")
       else $name end;
+  def sync_ruleset($id; $entry):
+    if ($rulesets[0] | has($id)) then
+      ($rulesets[0][$id]) as $ruleset_id
+      | if $ruleset_id == null then
+          $entry | del(.ruleset_id)
+        elif ($ruleset_id | type) == "number" then
+          $entry + {ruleset_id: $ruleset_id}
+        else
+          fail("Repository \($id) has an invalid ruleset_id")
+        end
+    else $entry end;
 
   $inventory[0] as $inventory
   | $inventory.github_owner as $owner
@@ -87,6 +149,8 @@ jq -n \
       | repo_name($key; $entry) as $old_name
       | if ($entry | has("github_id")) and (($entry.github_id | type) != "number") then
           fail("Repository \($key) has an invalid github_id")
+        elif ($entry | has("ruleset_id")) and (($entry.ruleset_id | type) != "number") then
+          fail("Repository \($key) has an invalid ruleset_id")
         elif ($entry.retired // false) and ($entry.github_id == null) then
           fail("Retired repository \($key) requires github_id")
         else . end
@@ -115,6 +179,7 @@ jq -n \
                 github_id: $repo.id,
                 observed_visibility: ($repo.visibility // "public")
               }) as $next
+              | sync_ruleset($id; $next) as $next
               | ($next
                   | if $repo.name == $key then del(.name)
                     else .name = $repo.name
@@ -145,13 +210,31 @@ jq -n \
       | if (.entries | has($repo.name)) or $name_collision != null then
           fail("Cannot add \($repo.name): its name or stable Terraform key is reserved by an existing inventory entry")
         else
-          .entries[$repo.name] = {
-            github_id: $repo.id,
-            observed_visibility: ($repo.visibility // "public")
-          }
+          ($repo.id | tostring) as $id
+          | sync_ruleset($id; {
+              github_id: $repo.id,
+              observed_visibility: ($repo.visibility // "public")
+            }) as $entry
+          | .entries[$repo.name] = $entry
           | .additions += [$repo.name]
         end
     )
+  | .entries as $entries
+  | [$entries | to_entries[] | repo_name(.key; .value)] as $names
+  | if ($names | unique | length) != ($names | length) then
+      fail("Repository names must be unique across the inventory")
+    else . end
+  | [
+      $entries
+      | to_entries[]
+      | . as $item
+      | repo_name($item.key; $item.value) as $name
+      | select($name != $item.key and ($entries | has($name)))
+      | "\($item.key) -> \($name)"
+    ] as $key_collisions
+  | if ($key_collisions | length) > 0 then
+      fail("Repository names must not reuse another stable Terraform key: \($key_collisions | join(", "))")
+    else . end
   | .entries = (.entries | to_entries | sort_by(.key) | from_entries)
   | .additions |= sort
   | .archives |= sort
