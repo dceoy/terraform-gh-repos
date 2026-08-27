@@ -23,9 +23,18 @@ jobs:
         with:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          client-id: ${{ vars.INVENTORY_GH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.INVENTORY_GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          permission-metadata: read
+          permission-administration: read
       - name: Synchronize inventory
         env:
-          GH_TOKEN: ${{ secrets.GH_INVENTORY_TOKEN }}
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: >
           bash .github/scripts/sync-repositories.sh
           --tfvars-json envs/dceoy.tfvars.json

@@ -57,8 +57,8 @@ if [[ -z "$repositories_json" ]]; then
     exit 1
   }
   api_file="$(mktemp)"
-  gh api --paginate '/user/repos?affiliation=owner&per_page=100' \
-    | jq -s 'add' > "$api_file"
+  gh api --paginate '/installation/repositories?per_page=100' \
+    | jq -s '[.[].repositories[]]' > "$api_file"
   repositories_json="$api_file"
 fi
 
