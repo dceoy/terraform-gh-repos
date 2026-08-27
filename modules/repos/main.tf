@@ -1,5 +1,5 @@
 data "github_repository" "existing" {
-  for_each  = var.repositories
+  for_each  = local.active_repositories
   full_name = "${var.github_owner}/${local.repository_names[each.key]}"
   lifecycle {
     postcondition {
@@ -12,7 +12,7 @@ data "github_repository" "existing" {
 resource "github_repository" "repo" {
   #checkov:skip=CKV_GIT_1:Managed repositories may intentionally be public; visibility is preserved from GitHub.
   #checkov:skip=CKV2_GIT_1:Ruleset-based branch protection is applied uniformly to public repositories supported by GitHub Free.
-  for_each               = var.repositories
+  for_each               = local.active_repositories
   name                   = local.repository_names[each.key]
   has_issues             = each.value.has_issues
   has_discussions        = each.value.has_discussions
@@ -45,6 +45,7 @@ resource "github_repository" "repo" {
     }
   }
   lifecycle {
+    destroy         = false
     prevent_destroy = true
     ignore_changes = [
       description,
@@ -64,23 +65,32 @@ resource "github_repository" "repo" {
 }
 
 resource "github_repository_vulnerability_alerts" "alerts" {
-  for_each   = var.repositories
+  for_each   = local.active_repositories
   repository = github_repository.repo[each.key].name
   enabled    = each.value.vulnerability_alerts
+  lifecycle {
+    destroy = false
+  }
 }
 
 resource "github_repository_dependabot_security_updates" "dependabot" {
-  for_each   = var.repositories
+  for_each   = local.active_repositories
   repository = github_repository.repo[each.key].name
   enabled    = each.value.dependabot_security_updates
   depends_on = [github_repository_vulnerability_alerts.alerts]
+  lifecycle {
+    destroy = false
+  }
 }
 
 resource "github_workflow_repository_permissions" "actions" {
-  for_each                         = var.repositories
+  for_each                         = local.active_repositories
   repository                       = github_repository.repo[each.key].name
   default_workflow_permissions     = each.value.default_workflow_permissions
   can_approve_pull_request_reviews = each.value.can_approve_pull_request_reviews
+  lifecycle {
+    destroy = false
+  }
 }
 
 resource "github_repository_ruleset" "branch" {
@@ -107,5 +117,8 @@ resource "github_repository_ruleset" "branch" {
       required_approving_review_count   = 0
       required_review_thread_resolution = true
     }
+  }
+  lifecycle {
+    destroy = false
   }
 }
