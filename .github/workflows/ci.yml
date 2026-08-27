@@ -30,6 +30,7 @@ jobs:
     uses: dceoy/gha-for-devops/.github/workflows/shell-lint.yml@main  # zizmor: ignore[unpinned-uses]
     with:
       search-path: .
+      use-shfmt: true
   bats-test:
     if: >
       github.event_name == 'push'
