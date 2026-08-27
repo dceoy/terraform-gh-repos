@@ -7,7 +7,6 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  actions: write
 defaults:
   run:
     shell: bash -euo pipefail {0}
@@ -42,13 +41,3 @@ jobs:
           base: ${{ github.event.repository.default_branch }}
           body: Synchronize `envs/dceoy.tfvars.json` with active repositories owned by `dceoy`.
           delete-branch: true
-      - name: Dispatch CI
-        if: >-
-          steps.create-pull-request.outputs.pull-request-operation == 'created' ||
-          steps.create-pull-request.outputs.pull-request-operation == 'updated'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: >
-          gh workflow run ci.yml
-          --ref github-actions/repository-inventory
-          -f workflow=lint-and-scan
