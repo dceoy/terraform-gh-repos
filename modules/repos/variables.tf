@@ -27,7 +27,7 @@ variable "repositories" {
   type = map(object({
     github_id                        = optional(number)
     name                             = optional(string)
-    visibility                       = optional(string)
+    observed_visibility              = optional(string)
     has_issues                       = optional(bool, true)
     has_discussions                  = optional(bool, false)
     has_projects                     = optional(bool, false)
@@ -70,9 +70,9 @@ variable "repositories" {
   validation {
     condition = alltrue([
       for repo in values(var.repositories) :
-      repo.visibility == null || contains(["public", "private", "internal"], repo.visibility)
+      repo.observed_visibility == null || contains(["public", "private", "internal"], repo.observed_visibility)
     ])
-    error_message = "Repository visibility metadata must be public, private, or internal when set."
+    error_message = "Observed repository visibility must be public, private, or internal when set."
   }
   validation {
     condition = alltrue([
