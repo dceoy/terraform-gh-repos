@@ -23,8 +23,11 @@ variable "github_app_pem_file" {
 }
 
 variable "repositories" {
-  description = "Existing active repositories managed by this Terraform configuration."
+  description = "Existing active repositories managed by this Terraform configuration. Map keys are stable Terraform identities; name defaults to the key."
   type = map(object({
+    github_id                        = optional(number)
+    name                             = optional(string)
+    visibility                       = optional(string)
     has_issues                       = optional(bool, true)
     has_discussions                  = optional(bool, false)
     has_projects                     = optional(bool, false)
@@ -41,6 +44,36 @@ variable "repositories" {
     dependabot_security_updates      = optional(bool, true)
   }))
   default = {}
+  validation {
+    condition = length(distinct([
+      for key, repo in var.repositories : coalesce(repo.name, key)
+    ])) == length(var.repositories)
+    error_message = "Repository names must be unique."
+  }
+  validation {
+    condition = length([
+      for repo in values(var.repositories) : repo.github_id
+      if repo.github_id != null
+      ]) == length(distinct([
+        for repo in values(var.repositories) : repo.github_id
+        if repo.github_id != null
+    ]))
+    error_message = "GitHub repository IDs must be unique when set."
+  }
+  validation {
+    condition = alltrue([
+      for repo in values(var.repositories) :
+      repo.name == null || length(trimspace(repo.name)) > 0
+    ])
+    error_message = "Repository names must not be empty when set."
+  }
+  validation {
+    condition = alltrue([
+      for repo in values(var.repositories) :
+      repo.visibility == null || contains(["public", "private", "internal"], repo.visibility)
+    ])
+    error_message = "Repository visibility metadata must be public, private, or internal when set."
+  }
   validation {
     condition = alltrue([
       for repo in values(var.repositories) :
