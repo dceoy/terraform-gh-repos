@@ -14,6 +14,7 @@ repositories = {
   "aws-cfn-s3-with-expiration"           = {}
   "aws-cfn-vpc-for-slc"                  = {}
   "clir"                                 = {}
+  "cloudflare-inquiry-web-form"          = {}
   "command-template-bash"                = {}
   "dceoy"                                = {}
   "dceoy.github.io"                      = {}
