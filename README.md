@@ -9,10 +9,6 @@ Repository creation and destructive retirement are intentionally out of scope.
 ## Layout
 
 ```text
-envs/
-└── dceoy/
-    └── repos.tfvars.json
-
 modules/
 └── repos/
     ├── .terraform.lock.hcl
