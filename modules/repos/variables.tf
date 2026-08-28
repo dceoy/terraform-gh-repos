@@ -7,6 +7,24 @@ variable "github_app_id" {
   description = "GitHub App ID used for provider authentication. Leave unset to use GITHUB_TOKEN or the provider's normal token/CLI authentication instead."
   type        = string
   default     = null
+  validation {
+    condition = (
+      (
+        var.github_app_id == null
+        && var.github_app_installation_id == null
+        && var.github_app_pem_file == null
+      )
+      || (
+        var.github_app_id != null
+        && length(trimspace(var.github_app_id)) > 0
+        && var.github_app_installation_id != null
+        && length(trimspace(var.github_app_installation_id)) > 0
+        && var.github_app_pem_file != null
+        && length(trimspace(var.github_app_pem_file)) > 0
+      )
+    )
+    error_message = "github_app_id, github_app_installation_id, and github_app_pem_file must be set together with non-empty values, or all be unset."
+  }
 }
 
 variable "github_app_installation_id" {
@@ -20,6 +38,12 @@ variable "github_app_pem_file" {
   type        = string
   default     = null
   sensitive   = true
+}
+
+variable "manage_default_branch_repository_rulesets" {
+  description = "Whether this workspace owns the default-branch repository rulesets. Set to false when an organization workspace owns the shared policy."
+  type        = bool
+  default     = true
 }
 
 variable "repositories" {

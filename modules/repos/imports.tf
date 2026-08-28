@@ -12,7 +12,7 @@ import {
 
 import {
   for_each = {
-    for key, repo in local.public_repositories : key => repo
+    for key, repo in local.ruleset_repositories : key => repo
     if repo.ruleset_id != null
   }
   to = github_repository_ruleset.branch[each.key]

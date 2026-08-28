@@ -94,7 +94,7 @@ resource "github_workflow_repository_permissions" "actions" {
 }
 
 resource "github_repository_ruleset" "branch" {
-  for_each    = local.public_repositories
+  for_each    = local.ruleset_repositories
   name        = "default-branch-protection"
   repository  = github_repository.repo[each.key].name
   target      = "branch"
