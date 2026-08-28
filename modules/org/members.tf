@@ -1,7 +1,7 @@
 resource "github_membership" "member" {
-  for_each = var.members
+  for_each = local.members_by_lower
 
-  username             = each.key
+  username             = each.value.username
   role                 = each.value.role
   downgrade_on_destroy = each.value.downgrade_on_destroy
 }

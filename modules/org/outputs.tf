@@ -19,5 +19,8 @@ output "team_slugs" {
 
 output "organization_ruleset_id" {
   description = "The managed organization default-branch ruleset ID, or null when no ruleset is configured."
-  value       = try(github_organization_ruleset.default_branch["default"].ruleset_id, null)
+  value = coalesce(
+    try(github_organization_ruleset.default_branch["default"].ruleset_id, null),
+    try(github_organization_ruleset.adopted_default_branch["default"].ruleset_id, null),
+  )
 }

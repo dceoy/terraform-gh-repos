@@ -252,6 +252,7 @@ variable "actions" {
       && (
         (var.actions.allowed_actions == "selected") == (var.actions.allowed_actions_config != null)
       )
+      && var.actions.sha_pinning_required
       && contains(["read", "write"], var.actions.default_workflow_permissions)
       && (
         var.actions.allowed_actions_config == null
@@ -262,9 +263,13 @@ variable "actions" {
           && alltrue([
             for pattern in var.actions.allowed_actions_config.patterns_allowed : length(trimspace(pattern)) > 0
           ])
+          && (
+            var.actions.allowed_actions != "selected"
+            || length(var.actions.allowed_actions_config.patterns_allowed) > 0
+          )
         )
     ), false)
-    error_message = "Actions must explicitly set all policy values; selected policies require matching non-empty configuration; and default workflow permissions must be read or write."
+    error_message = "Actions must explicitly set all policy values; SHA pinning must be true with provider 6.13.0; selected policies require a non-empty configuration and pattern set; and default workflow permissions must be read or write."
   }
 }
 
