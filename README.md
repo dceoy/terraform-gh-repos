@@ -45,17 +45,16 @@ TF_CLI_ARGS_apply=-var-file="../../envs/dceoy/repos.tfvars.json"
 
 Configure automatic run triggering for changes under `modules/repos/**` and the selected tfvars file.
 
-### GitHub authentication
+### GitHub App setup
 
-The GitHub provider supports GitHub App authentication when all of these Terraform variables are set:
+Create and install a private GitHub App for the account Terraform manages:
 
-- `github_app_id`
-- `github_app_installation_id`
-- `github_app_pem_file` (sensitive)
+1. Grant repository **Administration: Read and write** and **Contents: Read and write** permissions.
+2. Install the App on all repositories Terraform should manage.
+3. Record the App ID and installation ID, and generate a private key.
+4. Set `github_app_id`, `github_app_installation_id`, and sensitive `github_app_pem_file` as Terraform variables in the HCP Terraform workspace.
 
-The App requires repository **Administration: Read and write** and **Contents: Read and write** permissions. Install it on all repositories Terraform should manage.
-
-If App credentials are not configured, the provider falls back to its normal token/CLI authentication. `github_owner` comes from the tfvars file; do not set `GITHUB_OWNER` separately.
+The provider uses GitHub App authentication when all three variables are set; otherwise it falls back to its normal token/CLI authentication. `github_owner` comes from the tfvars file; do not set `GITHUB_OWNER` separately.
 
 ## Repository inventory
 
