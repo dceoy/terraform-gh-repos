@@ -21,9 +21,9 @@ resource "github_team_membership" "member" {
   lifecycle {
     precondition {
       condition = (
-        contains(keys(var.members), each.value.username)
+        contains(keys(local.member_usernames_by_lower), lower(each.value.username))
         && (
-          try(var.members[each.value.username].role, "member") != "admin"
+          try(var.members[local.member_usernames_by_lower[lower(each.value.username)]].role, "member") != "admin"
           || each.value.role == "maintainer"
         )
       )

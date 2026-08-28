@@ -8,46 +8,46 @@ variable "github_owner" {
 }
 
 variable "github_app_id" {
-  description = "GitHub App ID used for provider authentication. Leave unset to use GITHUB_TOKEN or the provider's normal token/CLI authentication instead."
+  description = "GitHub App ID used for provider authentication. This organization governance root requires explicit App authentication."
   type        = string
-  default     = null
   validation {
-    condition = (
-      (
-        var.github_app_id == null
-        && var.github_app_installation_id == null
-        && var.github_app_pem_file == null
-      )
-      || (
-        var.github_app_id != null
-        && length(trimspace(var.github_app_id)) > 0
-        && var.github_app_installation_id != null
-        && length(trimspace(var.github_app_installation_id)) > 0
-        && var.github_app_pem_file != null
-        && length(trimspace(var.github_app_pem_file)) > 0
-      )
-    )
-    error_message = "github_app_id, github_app_installation_id, and github_app_pem_file must be set together with non-empty values, or all be unset."
+    condition     = length(trimspace(var.github_app_id)) > 0
+    error_message = "github_app_id must be a non-empty GitHub App ID."
   }
 }
 
 variable "github_app_installation_id" {
-  description = "GitHub App installation ID used for provider authentication. Leave unset to use GITHUB_TOKEN or the provider's normal token/CLI authentication instead."
+  description = "GitHub App installation ID used for provider authentication. This organization governance root requires explicit App authentication."
   type        = string
-  default     = null
+  validation {
+    condition     = length(trimspace(var.github_app_installation_id)) > 0
+    error_message = "github_app_installation_id must be a non-empty GitHub App installation ID."
+  }
 }
 
 variable "github_app_pem_file" {
-  description = "GitHub App private key (PEM contents) used for provider authentication. Leave unset to use GITHUB_TOKEN or the provider's normal token/CLI authentication instead."
+  description = "GitHub App private key (PEM contents) used for provider authentication. This organization governance root requires explicit App authentication."
   type        = string
-  default     = null
   sensitive   = true
+  validation {
+    condition     = length(trimspace(var.github_app_pem_file)) > 0
+    error_message = "github_app_pem_file must contain a non-empty GitHub App private key."
+  }
+}
+
+variable "organization_billing_email" {
+  description = "Billing email for the managed GitHub organization."
+  type        = string
+  sensitive   = true
+  validation {
+    condition     = length(trimspace(var.organization_billing_email)) > 0
+    error_message = "organization_billing_email must not be empty."
+  }
 }
 
 variable "organization_settings" {
   description = "Organization settings to manage explicitly. All supported Team settings are required so provider defaults cannot change an existing organization during adoption."
   type = object({
-    billing_email                           = string
     default_repository_permission           = string
     has_organization_projects               = bool
     has_repository_projects                 = bool
@@ -60,20 +60,18 @@ variable "organization_settings" {
     members_can_fork_private_repositories   = bool
     web_commit_signoff_required             = bool
   })
-  sensitive = true
   validation {
     condition = (
-      length(trimspace(var.organization_settings.billing_email)) > 0
-      && contains(["read", "write", "admin", "none"], var.organization_settings.default_repository_permission)
+      contains(["read", "write", "admin", "none"], var.organization_settings.default_repository_permission)
     )
-    error_message = "billing_email must not be empty and default_repository_permission must be read, write, admin, or none."
+    error_message = "default_repository_permission must be read, write, admin, or none."
   }
 }
 
 variable "members" {
   description = "Organization members to manage. This map is non-authoritative; members not listed here are not managed."
   type = map(object({
-    role                 = optional(string, "member")
+    role                 = string
     downgrade_on_destroy = optional(bool, false)
   }))
   default = {}
@@ -91,27 +89,39 @@ variable "teams" {
   description = "Teams and their non-authoritative memberships and repository grants, keyed by stable local identity."
   type = map(object({
     team_id              = optional(number)
-    name                 = optional(string)
-    description          = optional(string)
-    privacy              = optional(string, "closed")
-    notification_setting = optional(string, "notifications_enabled")
-    parent_team          = optional(string)
+    name                 = string
+    description          = string
+    privacy              = string
+    notification_setting = string
+    parent_team          = string
     members = optional(map(object({
-      role = optional(string, "member")
+      role = string
     })), {})
     repositories = optional(map(string), {})
   }))
   default = {}
   validation {
     condition = (
-      length(distinct([for key, team in var.teams : coalesce(team.name, key)])) == length(var.teams)
-      && length(distinct([for key, team in var.teams : lower(coalesce(team.name, key))])) == length(var.teams)
+      length(distinct([for team in values(var.teams) : coalesce(team.name, "")])) == length(var.teams)
+      && length(distinct([for team in values(var.teams) : lower(coalesce(team.name, ""))])) == length(var.teams)
       && alltrue([
-        for key, team in var.teams :
-        length(trimspace(coalesce(team.name, key))) > 0
+        for team in values(var.teams) :
+        length(trimspace(coalesce(team.name, ""))) > 0
       ])
     )
-    error_message = "Team names must be non-empty and case-insensitively unique."
+    error_message = "Team names must be explicitly configured, non-empty, and case-insensitively unique."
+  }
+  validation {
+    condition = alltrue([
+      for team in values(var.teams) : try(
+        team.name != null
+        && team.description != null
+        && team.privacy != null
+        && team.notification_setting != null,
+        false
+      )
+    ])
+    error_message = "Team name, description, privacy, and notification_setting must be explicitly configured; parent_team may be null."
   }
   validation {
     condition = alltrue([
@@ -210,21 +220,27 @@ variable "teams" {
 variable "actions" {
   description = "Organization-wide GitHub Actions policy."
   type = object({
-    enabled_repositories  = optional(string, "all")
-    selected_repositories = optional(set(string), [])
-    allowed_actions       = optional(string, "all")
-    allowed_actions_config = optional(object({
+    enabled_repositories  = string
+    selected_repositories = set(string)
+    allowed_actions       = string
+    allowed_actions_config = object({
       github_owned_allowed = bool
-      verified_allowed     = optional(bool, false)
-      patterns_allowed     = optional(set(string), [])
-    }))
-    sha_pinning_required             = optional(bool, false)
-    default_workflow_permissions     = optional(string, "read")
-    can_approve_pull_request_reviews = optional(bool, false)
+      verified_allowed     = bool
+      patterns_allowed     = set(string)
+    })
+    sha_pinning_required             = bool
+    default_workflow_permissions     = string
+    can_approve_pull_request_reviews = bool
   })
   validation {
-    condition = (
-      contains(["all", "none", "selected"], var.actions.enabled_repositories)
+    condition = try(
+      var.actions.enabled_repositories != null
+      && var.actions.selected_repositories != null
+      && var.actions.allowed_actions != null
+      && var.actions.sha_pinning_required != null
+      && var.actions.default_workflow_permissions != null
+      && var.actions.can_approve_pull_request_reviews != null
+      && contains(["all", "none", "selected"], var.actions.enabled_repositories)
       && (
         var.actions.enabled_repositories == "selected"
         ? length(var.actions.selected_repositories) > 0
@@ -237,18 +253,28 @@ variable "actions" {
         (var.actions.allowed_actions == "selected") == (var.actions.allowed_actions_config != null)
       )
       && contains(["read", "write"], var.actions.default_workflow_permissions)
-    )
-    error_message = "Actions must use valid repository/action policies; selected policies require the matching non-empty configuration; and default workflow permissions must be read or write."
+      && (
+        var.actions.allowed_actions_config == null
+        || (
+          var.actions.allowed_actions_config.github_owned_allowed != null
+          && var.actions.allowed_actions_config.verified_allowed != null
+          && var.actions.allowed_actions_config.patterns_allowed != null
+          && alltrue([
+            for pattern in var.actions.allowed_actions_config.patterns_allowed : length(trimspace(pattern)) > 0
+          ])
+        )
+    ), false)
+    error_message = "Actions must explicitly set all policy values; selected policies require matching non-empty configuration; and default workflow permissions must be read or write."
   }
 }
 
 variable "default_branch_ruleset" {
-  description = "Optional shared organization default-branch ruleset. Set enforcement to disabled for the initial adoption apply."
+  description = "Optional shared organization default-branch ruleset. Enforcement, exclusions, and approval count must be explicit; set enforcement to disabled for the initial adoption apply."
   type = object({
     ruleset_id                      = optional(number)
-    enforcement                     = optional(string, "disabled")
-    repository_exclusions           = optional(set(string), [])
-    required_approving_review_count = optional(number, 0)
+    enforcement                     = string
+    repository_exclusions           = set(string)
+    required_approving_review_count = number
   })
   default = null
   validation {

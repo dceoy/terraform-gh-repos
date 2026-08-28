@@ -1,15 +1,19 @@
 locals {
+  member_usernames_by_lower = {
+    for username in keys(var.members) : lower(username) => username
+  }
+
   team_names = {
-    for key, team in var.teams : key => coalesce(team.name, key)
+    for key, team in var.teams : key => team.name
   }
 
   team_memberships = {
     for membership in flatten([
       for team_key, team in var.teams : [
         for username, member in team.members : {
-          key      = "${team_key}:${username}"
+          key      = "${team_key}:${try(local.member_usernames_by_lower[lower(username)], username)}"
           team_key = team_key
-          username = username
+          username = try(local.member_usernames_by_lower[lower(username)], username)
           role     = member.role
         }
       ]

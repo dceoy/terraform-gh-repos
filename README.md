@@ -62,7 +62,7 @@ Create a second VCS-driven workspace for organization governance:
 - Execution mode: Remote
 - Terraform version: `>= 1.16.0`
 
-For a VCS-driven workspace, prefer HCP Terraform workspace or variable-set values for `github_owner`, `organization_settings`, `members`, `teams`, `actions`, and the optional `default_branch_ruleset`. Do not set the file-based `TF_CLI_ARGS_*` variables below when those Terraform variables are configured in HCP.
+For a VCS-driven workspace, prefer HCP Terraform workspace or variable-set values for `github_owner`, `organization_billing_email`, `organization_settings`, `members`, `teams`, `actions`, and the optional `default_branch_ruleset`. Do not set the file-based `TF_CLI_ARGS_*` variables below when those Terraform variables are configured in HCP.
 
 Alternatively, load the organization environment file for plans and applies:
 
@@ -75,7 +75,7 @@ Because `.gitignore` excludes `*.tfvars.json`, an HCP VCS workspace can use the 
 
 ### GitHub App permissions
 
-Create and install a private GitHub App for the organization Terraform manages. Grant only the permissions needed by the configured resources:
+Create and install a private GitHub App for the organization Terraform manages. The `modules/org` workspace requires explicit App authentication; grant only the permissions needed by the configured resources:
 
 1. Grant organization **Administration: Read and write** for organization settings, Actions policy, and rulesets.
 2. Grant organization **Members: Read and write** for members, teams, team memberships, and team visibility.
@@ -83,9 +83,9 @@ Create and install a private GitHub App for the organization Terraform manages. 
 4. Add repository **Administration: Read and write** only when `teams.*.repositories` grants are configured, or when the same App is used by `modules/repos` to manage repository settings. These modules do not require repository **Contents** permission.
 5. Install the App on the organization and only the repositories Terraform should manage.
 6. Record the App ID and installation ID, and generate a private key.
-7. Set `github_app_id`, `github_app_installation_id`, and sensitive `github_app_pem_file` as Terraform variables in each HCP Terraform workspace.
+7. Set `github_app_id`, `github_app_installation_id`, and sensitive `github_app_pem_file` as Terraform variables in the `modules/org` HCP Terraform workspace. The organization root does not use token or CLI fallback, and ambient `GITHUB_APP_*` variables cannot replace these inputs. The `modules/repos` workspace retains its all-unset token/CLI fallback; partial App credentials are rejected in both roots.
 
-The selected organization settings, membership, team, Actions, and ruleset operations support GitHub App installation authentication; a user token is not required for this scope. Set all three App credentials together to use App authentication. If all three are unset, the provider falls back to its normal token/CLI authentication for explicitly configured local use; partial App credentials are rejected. `github_owner` comes from the selected tfvars file or HCP Terraform variables; do not set `GITHUB_OWNER` separately.
+The selected organization settings, membership, team, Actions, and ruleset operations use GitHub App installation authentication; a user token is not required for this scope. `github_owner` comes from the selected tfvars file or HCP Terraform variables; do not set `GITHUB_OWNER` separately.
 
 ## Organization governance
 
@@ -100,8 +100,8 @@ Create `envs/<organization>/org.tfvars.json` for the organization workspace. The
 ```json
 {
   "github_owner": "example-org",
+  "organization_billing_email": "admin@example.org",
   "organization_settings": {
-    "billing_email": "admin@example.org",
     "default_repository_permission": "none",
     "has_organization_projects": true,
     "has_repository_projects": true,
@@ -126,7 +126,11 @@ Create `envs/<organization>/org.tfvars.json` for the organization workspace. The
   "teams": {
     "engineering": {
       "team_id": 123456,
+      "name": "Engineering",
       "description": "Engineering",
+      "privacy": "closed",
+      "notification_setting": "notifications_enabled",
+      "parent_team": null,
       "members": {
         "bob": {
           "role": "member"
@@ -139,23 +143,26 @@ Create `envs/<organization>/org.tfvars.json` for the organization workspace. The
   },
   "actions": {
     "enabled_repositories": "all",
+    "selected_repositories": [],
     "allowed_actions": "selected",
     "allowed_actions_config": {
       "github_owned_allowed": true,
       "verified_allowed": true,
       "patterns_allowed": ["actions/cache@*", "actions/checkout@*"]
     },
+    "sha_pinning_required": true,
     "default_workflow_permissions": "read",
     "can_approve_pull_request_reviews": false
   },
   "default_branch_ruleset": {
     "enforcement": "disabled",
+    "repository_exclusions": [],
     "required_approving_review_count": 0
   }
 }
 ```
 
-The first plan imports organization settings and Actions policy automatically. Read the current supported Team settings before filling the required `organization_settings` object; provider fields outside that object are ignored and preserved. Provide `team_id` and `ruleset_id` for existing resources so they are adopted rather than recreated. Memberships and team access are non-authoritative provider operations that adopt or create only the configured associations. Review the first plan carefully: removing a membership, team membership, or team-repository entry changes remote access, even though removing organization settings, teams, Actions policy, or the ruleset from configuration does not destroy those remote resources.
+The first plan imports organization settings and Actions policy automatically. Read the current supported Team settings, member roles, team attributes, Actions policy, and ruleset before filling the required inputs; policy values remain visible in the plan while the billing email and App key are sensitive. Provider fields outside the managed settings are ignored and preserved. Provide `team_id` and `ruleset_id` for existing resources so they are adopted rather than recreated. Memberships and team access are non-authoritative provider operations that adopt or create only the configured associations. Review the first plan carefully: removing a membership, team membership, or team-repository entry changes remote access, even though removing organization settings, teams, Actions policy, or the ruleset from configuration does not destroy those remote resources.
 
 ### Organization and repository ruleset ownership
 

@@ -4,7 +4,7 @@ data "github_organization" "current" {
 }
 
 resource "github_organization_settings" "settings" {
-  billing_email                           = var.organization_settings.billing_email
+  billing_email                           = var.organization_billing_email
   default_repository_permission           = var.organization_settings.default_repository_permission
   has_organization_projects               = var.organization_settings.has_organization_projects
   has_repository_projects                 = var.organization_settings.has_repository_projects
