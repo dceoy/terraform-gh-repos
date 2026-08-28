@@ -62,31 +62,34 @@ Create a second VCS-driven workspace for organization governance:
 - Execution mode: Remote
 - Terraform version: `>= 1.16.0`
 
-Load the organization environment file for plans and applies:
+For a VCS-driven workspace, prefer HCP Terraform workspace or variable-set values for `github_owner`, `organization_settings`, `members`, `teams`, `actions`, and the optional `default_branch_ruleset`. Do not set the file-based `TF_CLI_ARGS_*` variables below when those Terraform variables are configured in HCP.
+
+Alternatively, load the organization environment file for plans and applies:
 
 ```text
 TF_CLI_ARGS_plan=-var-file="../../envs/<organization>/org.tfvars.json"
 TF_CLI_ARGS_apply=-var-file="../../envs/<organization>/org.tfvars.json"
 ```
 
-Keep the `modules/org` and `modules/repos` workspaces and state separate. Configure the organization workspace to trigger on `modules/org/**` and its selected environment file.
+Because `.gitignore` excludes `*.tfvars.json`, an HCP VCS workspace can use the file-based option only when the file is deliberately reviewed and force-added, for example with `git add -f envs/<organization>/org.tfvars.json`. Keep App credentials in sensitive HCP variables and do not force-add private keys. Keep the `modules/org` and `modules/repos` workspaces and state separate. Configure the organization workspace to trigger on `modules/org/**` and, when tracked, its selected environment file.
 
 ### GitHub App permissions
 
-Create and install a private GitHub App for the organization Terraform manages. For `modules/org`, grant only the permissions needed by the configured resources:
+Create and install a private GitHub App for the organization Terraform manages. Grant only the permissions needed by the configured resources:
 
-1. Grant organization **Administration: Read and write** and **Members: Read and write** permissions.
-2. Grant repository **Administration: Read and write** and **Metadata: Read-only** permissions.
-3. If the same App is used by `modules/repos`, also grant repository **Contents: Read and write**.
-4. Install the App on the organization and all repositories Terraform should manage.
-5. Record the App ID and installation ID, and generate a private key.
-6. Set `github_app_id`, `github_app_installation_id`, and sensitive `github_app_pem_file` as Terraform variables in each HCP Terraform workspace.
+1. Grant organization **Administration: Read and write** for organization settings, Actions policy, and rulesets.
+2. Grant organization **Members: Read and write** for members, teams, team memberships, and team visibility.
+3. Grant repository **Metadata: Read-only** for configured team-access and selected-Actions repository lookups.
+4. Add repository **Administration: Read and write** only when `teams.*.repositories` grants are configured, or when the same App is used by `modules/repos` to manage repository settings. These modules do not require repository **Contents** permission.
+5. Install the App on the organization and only the repositories Terraform should manage.
+6. Record the App ID and installation ID, and generate a private key.
+7. Set `github_app_id`, `github_app_installation_id`, and sensitive `github_app_pem_file` as Terraform variables in each HCP Terraform workspace.
 
-The selected organization settings, membership, team, Actions, and ruleset operations support GitHub App installation authentication; a user token is not required for this scope. The provider uses App authentication when all three variables are set; otherwise it falls back to its normal token/CLI authentication. `github_owner` comes from the selected tfvars file; do not set `GITHUB_OWNER` separately.
+The selected organization settings, membership, team, Actions, and ruleset operations support GitHub App installation authentication; a user token is not required for this scope. Set all three App credentials together to use App authentication. If all three are unset, the provider falls back to its normal token/CLI authentication for explicitly configured local use; partial App credentials are rejected. `github_owner` comes from the selected tfvars file or HCP Terraform variables; do not set `GITHUB_OWNER` separately.
 
 ## Organization governance
 
-`modules/org` manages organization settings, configured members, teams, team memberships, team-to-repository permissions, organization Actions policy, and an optional organization default-branch ruleset. Membership and access maps are non-authoritative: users, teams, and grants not listed in `org.tfvars.json` are not managed. Repository-specific workflow permissions remain in `modules/repos`.
+`modules/org` manages organization settings, configured members, teams, team memberships, team-to-repository permissions, organization Actions policy, and an optional organization default-branch ruleset. The supported Team organization settings are intentionally fully specified in `organization_settings`, so an adoption plan cannot silently inherit provider defaults. Membership and access maps are non-authoritative: users, teams, and grants not listed in `org.tfvars.json` are not managed. Repository-specific workflow permissions remain in `modules/repos`.
 
 The module intentionally excludes Enterprise-only or separately billed capabilities, including internal-repository organization settings, SAML or IdP team synchronization, enterprise account policies, Enterprise Managed Users, custom organization roles, and organization-wide Advanced Security defaults.
 
@@ -100,7 +103,15 @@ Create `envs/<organization>/org.tfvars.json` for the organization workspace. The
   "organization_settings": {
     "billing_email": "admin@example.org",
     "default_repository_permission": "none",
+    "has_organization_projects": true,
+    "has_repository_projects": true,
     "members_can_create_repositories": false,
+    "members_can_create_public_repositories": false,
+    "members_can_create_private_repositories": false,
+    "members_can_create_pages": true,
+    "members_can_create_public_pages": true,
+    "members_can_create_private_pages": true,
+    "members_can_fork_private_repositories": false,
     "web_commit_signoff_required": true
   },
   "members": {
@@ -144,7 +155,7 @@ Create `envs/<organization>/org.tfvars.json` for the organization workspace. The
 }
 ```
 
-The first plan imports organization settings and Actions policy automatically. Provide `team_id` and `ruleset_id` for existing resources so they are adopted rather than recreated. Memberships and team access are non-authoritative provider operations that adopt or create only the configured associations. Review the first plan carefully: removing a membership, team membership, or team-repository entry changes remote access, even though removing organization settings, teams, Actions policy, or the ruleset from configuration does not destroy those remote resources.
+The first plan imports organization settings and Actions policy automatically. Read the current supported Team settings before filling the required `organization_settings` object; provider fields outside that object are ignored and preserved. Provide `team_id` and `ruleset_id` for existing resources so they are adopted rather than recreated. Memberships and team access are non-authoritative provider operations that adopt or create only the configured associations. Review the first plan carefully: removing a membership, team membership, or team-repository entry changes remote access, even though removing organization settings, teams, Actions policy, or the ruleset from configuration does not destroy those remote resources.
 
 ### Organization and repository ruleset ownership
 
@@ -153,9 +164,9 @@ The first plan imports organization settings and Actions policy automatically. P
 Transfer ownership in stages:
 
 1. Configure and import the organization ruleset with `enforcement` set to `disabled`.
-2. Set `manage_default_branch_repository_rulesets` to `false` and apply `modules/repos`; its `destroy = false` lifecycle forgets repository ruleset state without deleting the remote rulesets.
-3. Deliberately remove the old repository rulesets after verifying the organization ruleset targets the intended repositories.
-4. Set the organization ruleset to `active` and apply `modules/org`.
+2. Set the organization ruleset to `active` and apply `modules/org` while the old repository rulesets remain active; verify the organization ruleset targets the intended repositories and is effective.
+3. Set `manage_default_branch_repository_rulesets` to `false` and apply `modules/repos`; its `destroy = false` lifecycle forgets repository ruleset state without deleting the remote rulesets.
+4. Deliberately remove the old repository rulesets only after active organization protection has been verified.
 
 For rollback, restore repository-level ownership and protection before disabling or removing the organization ruleset. Organization rulesets target `~ALL` repositories except configured name exclusions and otherwise match the existing default-branch policy with zero required approvals by default.
 

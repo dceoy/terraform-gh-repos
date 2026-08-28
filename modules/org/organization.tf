@@ -19,5 +19,21 @@ resource "github_organization_settings" "settings" {
 
   lifecycle {
     destroy = false
+    ignore_changes = [
+      company,
+      email,
+      twitter_username,
+      location,
+      name,
+      description,
+      blog,
+      members_can_create_internal_repositories,
+      advanced_security_enabled_for_new_repositories,
+      dependabot_alerts_enabled_for_new_repositories,
+      dependabot_security_updates_enabled_for_new_repositories,
+      dependency_graph_enabled_for_new_repositories,
+      secret_scanning_enabled_for_new_repositories,
+      secret_scanning_push_protection_enabled_for_new_repositories,
+    ]
   }
 }

@@ -11,6 +11,24 @@ variable "github_app_id" {
   description = "GitHub App ID used for provider authentication. Leave unset to use GITHUB_TOKEN or the provider's normal token/CLI authentication instead."
   type        = string
   default     = null
+  validation {
+    condition = (
+      (
+        var.github_app_id == null
+        && var.github_app_installation_id == null
+        && var.github_app_pem_file == null
+      )
+      || (
+        var.github_app_id != null
+        && length(trimspace(var.github_app_id)) > 0
+        && var.github_app_installation_id != null
+        && length(trimspace(var.github_app_installation_id)) > 0
+        && var.github_app_pem_file != null
+        && length(trimspace(var.github_app_pem_file)) > 0
+      )
+    )
+    error_message = "github_app_id, github_app_installation_id, and github_app_pem_file must be set together with non-empty values, or all be unset."
+  }
 }
 
 variable "github_app_installation_id" {
@@ -27,31 +45,28 @@ variable "github_app_pem_file" {
 }
 
 variable "organization_settings" {
-  description = "Organization settings to manage. Fields omitted from this object remain unmanaged."
+  description = "Organization settings to manage explicitly. All supported Team settings are required so provider defaults cannot change an existing organization during adoption."
   type = object({
     billing_email                           = string
-    default_repository_permission           = optional(string)
-    has_organization_projects               = optional(bool)
-    has_repository_projects                 = optional(bool)
-    members_can_create_repositories         = optional(bool)
-    members_can_create_public_repositories  = optional(bool)
-    members_can_create_private_repositories = optional(bool)
-    members_can_create_pages                = optional(bool)
-    members_can_create_public_pages         = optional(bool)
-    members_can_create_private_pages        = optional(bool)
-    members_can_fork_private_repositories   = optional(bool)
-    web_commit_signoff_required             = optional(bool)
+    default_repository_permission           = string
+    has_organization_projects               = bool
+    has_repository_projects                 = bool
+    members_can_create_repositories         = bool
+    members_can_create_public_repositories  = bool
+    members_can_create_private_repositories = bool
+    members_can_create_pages                = bool
+    members_can_create_public_pages         = bool
+    members_can_create_private_pages        = bool
+    members_can_fork_private_repositories   = bool
+    web_commit_signoff_required             = bool
   })
   sensitive = true
   validation {
     condition = (
       length(trimspace(var.organization_settings.billing_email)) > 0
-      && (
-        var.organization_settings.default_repository_permission == null
-        || contains(["read", "write", "admin", "none"], var.organization_settings.default_repository_permission)
-      )
+      && contains(["read", "write", "admin", "none"], var.organization_settings.default_repository_permission)
     )
-    error_message = "billing_email must not be empty and default_repository_permission must be read, write, admin, or none when set."
+    error_message = "billing_email must not be empty and default_repository_permission must be read, write, admin, or none."
   }
 }
 
@@ -65,9 +80,10 @@ variable "members" {
   validation {
     condition = (
       alltrue([for username in keys(var.members) : length(trimspace(username)) > 0])
+      && length(distinct([for username in keys(var.members) : lower(username)])) == length(var.members)
       && alltrue([for member in values(var.members) : contains(["member", "admin"], member.role)])
     )
-    error_message = "Member usernames must not be empty and member roles must be member or admin."
+    error_message = "Member usernames must be non-empty and case-insensitively unique, and member roles must be member or admin."
   }
 }
 
@@ -89,12 +105,13 @@ variable "teams" {
   validation {
     condition = (
       length(distinct([for key, team in var.teams : coalesce(team.name, key)])) == length(var.teams)
+      && length(distinct([for key, team in var.teams : lower(coalesce(team.name, key))])) == length(var.teams)
       && alltrue([
         for key, team in var.teams :
         length(trimspace(coalesce(team.name, key))) > 0
       ])
     )
-    error_message = "Team names must be non-empty and unique."
+    error_message = "Team names must be non-empty and case-insensitively unique."
   }
   validation {
     condition = alltrue([
@@ -102,6 +119,13 @@ variable "teams" {
       team.team_id == null || (team.team_id > 0 && floor(team.team_id) == team.team_id)
     ])
     error_message = "Team IDs must be positive integers when set."
+  }
+  validation {
+    condition = (
+      length([for team in values(var.teams) : team.team_id if team.team_id != null])
+      == length(distinct([for team in values(var.teams) : team.team_id if team.team_id != null]))
+    )
+    error_message = "Configured non-null team IDs must be unique."
   }
   validation {
     condition = alltrue([
@@ -152,12 +176,26 @@ variable "teams" {
     error_message = "Team membership usernames must not be empty."
   }
   validation {
+    condition = alltrue([
+      for team in values(var.teams) :
+      length(distinct([for username in keys(team.members) : lower(username)])) == length(team.members)
+    ])
+    error_message = "Team membership usernames must be case-insensitively unique within each team."
+  }
+  validation {
     condition = alltrue(flatten([
       for team in values(var.teams) : [
         for repository in keys(team.repositories) : length(trimspace(repository)) > 0
       ]
     ]))
     error_message = "Team repository names must not be empty."
+  }
+  validation {
+    condition = alltrue([
+      for team in values(var.teams) :
+      length(distinct([for repository in keys(team.repositories) : lower(repository)])) == length(team.repositories)
+    ])
+    error_message = "Team repository names must be case-insensitively unique within each team."
   }
   validation {
     condition = alltrue(flatten([
@@ -193,6 +231,7 @@ variable "actions" {
         : length(var.actions.selected_repositories) == 0
       )
       && alltrue([for repository in var.actions.selected_repositories : length(trimspace(repository)) > 0])
+      && length(distinct([for repository in var.actions.selected_repositories : lower(repository)])) == length(var.actions.selected_repositories)
       && contains(["all", "local_only", "selected"], var.actions.allowed_actions)
       && (
         (var.actions.allowed_actions == "selected") == (var.actions.allowed_actions_config != null)
@@ -230,6 +269,9 @@ variable "default_branch_ruleset" {
         && alltrue([
           for repository in var.default_branch_ruleset.repository_exclusions : length(trimspace(repository)) > 0
         ])
+        && length(distinct([
+          for repository in var.default_branch_ruleset.repository_exclusions : lower(repository)
+        ])) == length(var.default_branch_ruleset.repository_exclusions)
       )
     )
     error_message = "The default branch ruleset must use a positive integer ID when set, active or disabled enforcement, zero to six approvals, and non-empty repository exclusions."
