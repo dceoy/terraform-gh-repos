@@ -11,6 +11,7 @@ updates:
   - package-ecosystem: terraform
     directories:
       - /modules/repos/
+      - /modules/org/
     schedule:
       interval: daily
     cooldown:

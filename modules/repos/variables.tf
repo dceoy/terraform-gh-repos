@@ -22,6 +22,12 @@ variable "github_app_pem_file" {
   sensitive   = true
 }
 
+variable "manage_default_branch_repository_rulesets" {
+  description = "Whether this workspace owns the default-branch repository rulesets. Set to false when an organization workspace owns the shared policy."
+  type        = bool
+  default     = true
+}
+
 variable "repositories" {
   description = "Repositories tracked by this Terraform configuration. Map keys are stable Terraform identities; retired entries are retained as tombstones but excluded from management."
   type = map(object({

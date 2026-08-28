@@ -10,4 +10,5 @@ locals {
     for key, existing in data.github_repository.existing : key => local.active_repositories[key]
     if existing.visibility == "public"
   }
+  ruleset_repositories = var.manage_default_branch_repository_rulesets ? local.public_repositories : {}
 }

@@ -29,7 +29,7 @@ jobs:
         with:
           client-id: ${{ vars.INVENTORY_GH_APP_CLIENT_ID }}
           private-key: ${{ secrets.INVENTORY_GH_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
+          owner: ${{ github.repository_owner }}  # zizmor: ignore[github-app] owner-wide discovery is required to find newly created repositories
           permission-metadata: read
           permission-administration: read
       - name: Synchronize inventory
