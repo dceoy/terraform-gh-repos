@@ -19,13 +19,14 @@ HCP Terraform
 GitHub API
 ```
 
-Terraform manages existing, active repositories declared in `envs/dceoy.tfvars.json`. Repository creation and destructive retirement are intentionally out of scope.
+Terraform manages existing, active repositories declared in `envs/dceoy/repos.tfvars.json`. Repository creation and destructive retirement are intentionally out of scope.
 
 ## Layout
 
 ```text
 envs/
-└── dceoy.tfvars.json
+└── dceoy/
+    └── repos.tfvars.json
 
 modules/
 └── repos/
@@ -74,11 +75,11 @@ Terraform 1.16 is required because managed resources use `lifecycle { destroy = 
 Configure these environment variables so Terraform loads the environment-specific variable file for both planning and applying:
 
 ```text
-TF_CLI_ARGS_plan=-var-file="../../envs/dceoy.tfvars.json"
-TF_CLI_ARGS_apply=-var-file="../../envs/dceoy.tfvars.json"
+TF_CLI_ARGS_plan=-var-file="../../envs/dceoy/repos.tfvars.json"
+TF_CLI_ARGS_apply=-var-file="../../envs/dceoy/repos.tfvars.json"
 ```
 
-Configure automatic run triggering for changes under `modules/repos/**` and `envs/dceoy.tfvars.json`, because the variable file is outside the Terraform working directory.
+Configure automatic run triggering for changes under `modules/repos/**` and `envs/dceoy/repos.tfvars.json`, because the variable file is outside the Terraform working directory.
 
 Store GitHub App credentials as Terraform variables on the workspace: `github_app_id`, `github_app_installation_id`, and `github_app_pem_file` (the PEM file contents, including newlines). Mark only `github_app_pem_file` as sensitive; the app and installation IDs are identifiers, not secrets. The provider uses GitHub App authentication only when all three are set; otherwise it uses `GITHUB_TOKEN` or the provider's normal token/CLI authentication. These must be Terraform variables, not environment variables — the module reads them itself and passes them into the `github` provider's `app_auth` block.
 
