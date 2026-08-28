@@ -14,5 +14,10 @@ resource "github_team" "team" {
   lifecycle {
     destroy         = false
     prevent_destroy = true
+
+    postcondition {
+      condition     = each.value.team_id == null || tonumber(self.id) == each.value.team_id
+      error_message = "Configured team_id for ${each.key} does not match the adopted GitHub team. Rebind state explicitly before changing the adoption ID."
+    }
   }
 }

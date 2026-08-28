@@ -1,10 +1,14 @@
-data "github_repository" "managed" {
-  for_each  = local.repository_names
-  full_name = "${var.github_owner}/${each.value}"
+data "github_rest_api" "managed" {
+  for_each = local.repository_names_by_lower
+  endpoint = "/repos/${var.github_owner}/${each.value}"
 
   lifecycle {
     postcondition {
-      condition     = !self.archived
+      condition     = self.code == 200
+      error_message = "Repository ${each.value} could not be read from the managed GitHub organization."
+    }
+    postcondition {
+      condition     = try(jsondecode(self.body).archived == false, false)
       error_message = "Archived repository ${each.value} is outside Organization team access management scope."
     }
   }
@@ -36,6 +40,6 @@ resource "github_team_repository" "access" {
   for_each = local.team_repositories
 
   team_id    = github_team.team[each.value.team_key].id
-  repository = data.github_repository.managed[each.value.repository].name
+  repository = local.repository_metadata[lower(each.value.repository)].name
   permission = each.value.permission
 }

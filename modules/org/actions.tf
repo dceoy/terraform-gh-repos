@@ -17,7 +17,7 @@ resource "github_actions_organization_permissions" "permissions" {
     content {
       repository_ids = [
         for repository in sort(tolist(enabled_repositories_config.value)) :
-        data.github_repository.managed[repository].repo_id
+        local.repository_metadata[lower(repository)].id
       ]
     }
   }

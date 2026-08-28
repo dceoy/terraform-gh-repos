@@ -72,5 +72,10 @@ resource "github_organization_ruleset" "adopted_default_branch" {
   lifecycle {
     destroy        = false
     ignore_changes = all
+
+    postcondition {
+      condition     = self.ruleset_id == each.value.ruleset_id
+      error_message = "Configured ruleset_id does not match the adopted GitHub ruleset. Rebind state explicitly before changing the adoption ID."
+    }
   }
 }
