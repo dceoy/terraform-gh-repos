@@ -3,6 +3,20 @@ data "github_organization" "current" {
   summary_only = true
 }
 
+data "github_rest_api" "organization" {
+  endpoint = "/orgs/${var.github_owner}"
+  lifecycle {
+    postcondition {
+      condition     = self.code == 200
+      error_message = "Organization ${var.github_owner} could not be read."
+    }
+    postcondition {
+      condition     = try(length(trimspace(jsondecode(self.body).billing_email)) > 0, false)
+      error_message = "Organization billing email could not be read."
+    }
+  }
+}
+
 data "github_rest_api" "managed" {
   for_each = local.repository_names_by_lower
   endpoint = "/repos/${var.github_owner}/${each.value}"
@@ -19,21 +33,25 @@ data "github_rest_api" "managed" {
 }
 
 resource "github_organization_settings" "settings" {
-  billing_email                           = var.organization_billing_email
-  default_repository_permission           = var.organization_settings.default_repository_permission
+  billing_email                           = jsondecode(data.github_rest_api.organization.body).billing_email
+  default_repository_permission           = "none"
   has_organization_projects               = var.organization_settings.has_organization_projects
   has_repository_projects                 = var.organization_settings.has_repository_projects
-  members_can_create_repositories         = var.organization_settings.members_can_create_repositories
-  members_can_create_public_repositories  = var.organization_settings.members_can_create_public_repositories
-  members_can_create_private_repositories = var.organization_settings.members_can_create_private_repositories
-  members_can_create_pages                = var.organization_settings.members_can_create_pages
-  members_can_create_public_pages         = var.organization_settings.members_can_create_public_pages
-  members_can_create_private_pages        = var.organization_settings.members_can_create_private_pages
-  members_can_fork_private_repositories   = var.organization_settings.members_can_fork_private_repositories
+  members_can_create_repositories         = false
+  members_can_create_public_repositories  = false
+  members_can_create_private_repositories = false
+  members_can_create_pages                = false
+  members_can_create_public_pages         = false
+  members_can_create_private_pages        = false
+  members_can_fork_private_repositories   = false
   web_commit_signoff_required             = var.organization_settings.web_commit_signoff_required
+  dependency_graph_enabled_for_new_repositories            = true
+  dependabot_alerts_enabled_for_new_repositories            = true
+  dependabot_security_updates_enabled_for_new_repositories = true
   lifecycle {
     destroy = false
     ignore_changes = [
+      billing_email,
       company,
       email,
       twitter_username,
@@ -43,9 +61,6 @@ resource "github_organization_settings" "settings" {
       blog,
       members_can_create_internal_repositories,
       advanced_security_enabled_for_new_repositories,
-      dependabot_alerts_enabled_for_new_repositories,
-      dependabot_security_updates_enabled_for_new_repositories,
-      dependency_graph_enabled_for_new_repositories,
       secret_scanning_enabled_for_new_repositories,
       secret_scanning_push_protection_enabled_for_new_repositories,
     ]
