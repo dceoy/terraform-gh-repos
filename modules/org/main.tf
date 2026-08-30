@@ -33,20 +33,20 @@ data "github_rest_api" "managed" {
 }
 
 resource "github_organization_settings" "settings" {
-  billing_email                           = jsondecode(data.github_rest_api.organization.body).billing_email
-  default_repository_permission           = "none"
-  has_organization_projects               = var.organization_settings.has_organization_projects
-  has_repository_projects                 = var.organization_settings.has_repository_projects
-  members_can_create_repositories         = false
-  members_can_create_public_repositories  = false
-  members_can_create_private_repositories = false
-  members_can_create_pages                = false
-  members_can_create_public_pages         = false
-  members_can_create_private_pages        = false
-  members_can_fork_private_repositories   = false
-  web_commit_signoff_required             = var.organization_settings.web_commit_signoff_required
+  billing_email                                            = jsondecode(data.github_rest_api.organization.body).billing_email
+  default_repository_permission                            = "none"
+  has_organization_projects                                = var.organization_settings.has_organization_projects
+  has_repository_projects                                  = var.organization_settings.has_repository_projects
+  members_can_create_repositories                          = false
+  members_can_create_public_repositories                   = false
+  members_can_create_private_repositories                  = false
+  members_can_create_pages                                 = false
+  members_can_create_public_pages                          = false
+  members_can_create_private_pages                         = false
+  members_can_fork_private_repositories                    = false
+  web_commit_signoff_required                              = var.organization_settings.web_commit_signoff_required
   dependency_graph_enabled_for_new_repositories            = true
-  dependabot_alerts_enabled_for_new_repositories            = true
+  dependabot_alerts_enabled_for_new_repositories           = true
   dependabot_security_updates_enabled_for_new_repositories = true
   lifecycle {
     destroy = false
