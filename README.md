@@ -12,16 +12,14 @@ Repository creation and destructive retirement are intentionally out of scope.
 modules/
 ├── org/
 │   ├── .terraform.lock.hcl
-│   ├── access.tf
 │   ├── actions.tf
 │   ├── imports.tf
 │   ├── locals.tf
-│   ├── members.tf
 │   ├── organization.tf
 │   ├── outputs.tf
 │   ├── provider.tf
+│   ├── removed.tf
 │   ├── rulesets.tf
-│   ├── teams.tf
 │   ├── variables.tf
 │   └── version.tf
 └── repos/
@@ -35,7 +33,7 @@ modules/
     └── version.tf
 ```
 
-`modules/repos` and `modules/org` are independent Terraform root modules. Repository inventory and per-repository overrides live in `repos.tfvars.json`; organization settings and access policy live in `org.tfvars.json`. The modules do not share Terraform state.
+`modules/repos` and `modules/org` are independent Terraform root modules. Repository inventory and per-repository overrides live in `repos.tfvars.json`; organization settings and Actions/ruleset policy live in `org.tfvars.json`. The modules do not share Terraform state.
 
 ## HCP Terraform
 
@@ -62,7 +60,7 @@ Create a second VCS-driven workspace for organization governance:
 - Execution mode: Remote
 - Terraform version: `>= 1.16.0`
 
-For a VCS-driven workspace, prefer HCP Terraform workspace or variable-set values for `github_owner`, `organization_billing_email`, `organization_settings`, `members`, `teams`, `actions`, and the optional `default_branch_ruleset`. Do not set the file-based `TF_CLI_ARGS_*` variables below when those Terraform variables are configured in HCP.
+For a VCS-driven workspace, prefer HCP Terraform workspace or variable-set values for `github_owner`, `organization_billing_email`, `organization_settings`, `actions`, and the optional `default_branch_ruleset`. Do not set the file-based `TF_CLI_ARGS_*` variables below when those Terraform variables are configured in HCP.
 
 Alternatively, load the organization environment file for plans and applies:
 
@@ -78,24 +76,25 @@ Because `.gitignore` excludes `*.tfvars.json`, an HCP VCS workspace can use the 
 Create and install a private GitHub App for the organization Terraform manages. The `modules/org` workspace requires explicit App authentication; grant only the permissions needed by the configured resources:
 
 1. Grant organization **Administration: Read and write** for organization settings, Actions policy, and rulesets.
-2. Grant organization **Members: Read and write** for members, teams, team memberships, and team visibility.
-3. Grant repository **Metadata: Read-only** for the narrow repository metadata lookup used by configured team-access and selected-Actions repository IDs.
-4. Add repository **Administration: Read and write** only when `teams.*.repositories` grants are configured, or when the same App is used by `modules/repos` to manage repository settings. These modules do not require repository **Contents** permission.
-5. Install the App on the organization and only the repositories Terraform should manage.
-6. Record the App ID and installation ID, and generate a private key.
-7. Set `github_app_id`, `github_app_installation_id`, and sensitive `github_app_pem_file` as Terraform variables in the `modules/org` HCP Terraform workspace. The organization root does not use token or CLI fallback, and ambient `GITHUB_APP_*` variables cannot replace these inputs. The `modules/repos` workspace retains its all-unset token/CLI fallback; partial App credentials are rejected in both roots.
+2. Grant repository **Metadata: Read-only** when `actions.enabled_repositories` is `selected`, so configured repository IDs can be resolved.
+3. Install the App on the organization and on any repositories required by a selected Actions policy.
+4. Record the App ID and installation ID, generate a private key, and set `github_app_id`, `github_app_installation_id`, and sensitive `github_app_pem_file` as Terraform variables in the `modules/org` HCP Terraform workspace. The organization root does not use token or CLI fallback, and ambient `GITHUB_APP_*` variables cannot replace these inputs.
 
-The selected organization settings, membership, team, Actions, and ruleset operations use GitHub App installation authentication; a user token is not required for this scope. `github_owner` comes from the selected tfvars file or HCP Terraform variables. The provider receives both `owner` and its deprecated `organization` setting from that same value because provider 6.13.0 checks the legacy setting first; unset both `GITHUB_OWNER` and `GITHUB_ORGANIZATION` in local and HCP execution environments so ambient selectors cannot redirect the root.
+`modules/org` does not require organization **Members** permission or repository **Administration** permission because it does not manage members, teams, memberships, or team-to-repository access. If the same App is also used by `modules/repos`, grant the separate repository permissions required by that root.
+
+The selected organization settings, Actions, and ruleset operations use GitHub App installation authentication; a user token is not required for this scope. `github_owner` comes from the selected tfvars file or HCP Terraform variables. The provider receives both `owner` and its deprecated `organization` setting from that same value because provider 6.13.0 checks the legacy setting first; unset both `GITHUB_OWNER` and `GITHUB_ORGANIZATION` in local and HCP execution environments so ambient selectors cannot redirect the root.
 
 ## Organization governance
 
-`modules/org` manages organization settings, configured members, teams, team memberships, team-to-repository permissions, organization Actions policy, and an optional organization default-branch ruleset. The supported Team organization settings are intentionally fully specified in `organization_settings`, so an adoption plan cannot silently inherit provider defaults. Membership and access maps are non-authoritative: users, teams, and grants not listed in `org.tfvars.json` are not managed. Repository-specific workflow permissions remain in `modules/repos`.
+`modules/org` manages organization settings, organization Actions policy, and an optional organization default-branch ruleset. The supported organization settings are intentionally fully specified in `organization_settings`, so an adoption plan cannot silently inherit provider defaults. Repository-specific workflow permissions remain in `modules/repos`.
+
+As a safety boundary, `modules/org` does not manage organization members, teams, team memberships, or team-to-repository permissions. Existing access-control objects remain outside Terraform management.
 
 The module intentionally excludes Enterprise-only or separately billed capabilities, including internal-repository organization settings, SAML or IdP team synchronization, enterprise account policies, Enterprise Managed Users, custom organization roles, and organization-wide Advanced Security defaults.
 
 ### Organization environment file
 
-Create `envs/<organization>/org.tfvars.json` for the organization workspace. The file is ignored by default because it contains organization-specific data. Replace example IDs with IDs from the target organization; omit an ID when creating a new team or ruleset instead of adopting an existing one.
+Create `envs/<organization>/org.tfvars.json` for the organization workspace. The file is ignored by default because it contains organization-specific data. Provide `ruleset_id` only when adopting an existing organization ruleset.
 
 The JSON example intentionally omits the required `github_app_id`, `github_app_installation_id`, and `github_app_pem_file` inputs. Supply those values separately through sensitive HCP Terraform variables or securely exported `TF_VAR_*` inputs; never store the private key in the environment file.
 
@@ -115,33 +114,6 @@ The JSON example intentionally omits the required `github_app_id`, `github_app_i
     "members_can_create_private_pages": true,
     "members_can_fork_private_repositories": false,
     "web_commit_signoff_required": true
-  },
-  "members": {
-    "alice": {
-      "role": "admin",
-      "downgrade_on_destroy": true
-    },
-    "bob": {
-      "role": "member"
-    }
-  },
-  "teams": {
-    "engineering": {
-      "team_id": 123456,
-      "name": "Engineering",
-      "description": "Engineering",
-      "privacy": "closed",
-      "notification_setting": "notifications_enabled",
-      "parent_team": null,
-      "members": {
-        "bob": {
-          "role": "member"
-        }
-      },
-      "repositories": {
-        "example-repository": "push"
-      }
-    }
   },
   "actions": {
     "enabled_repositories": "all",
@@ -164,9 +136,11 @@ The JSON example intentionally omits the required `github_app_id`, `github_app_i
 }
 ```
 
-The first plan imports organization settings and Actions policy automatically. Read the current supported Team settings, member roles, team attributes, Actions policy, and ruleset before filling the required inputs; policy values remain visible in the plan while the billing email and App key are sensitive. Provider fields outside the managed settings are ignored and preserved. Provide `team_id` for existing teams so they are adopted rather than recreated. A `ruleset_id` adopts an existing organization ruleset in preserve-only mode: the resource is imported but its existing enforcement, conditions, rules, and bypass actors are not reconciled by this module. After initial import, changing `team_id` or `ruleset_id` does not rebind existing state; explicitly remove and import the intended object at the existing resource address before changing an adoption ID. Postconditions fail if the configured ID and state object diverge. Memberships and team access are non-authoritative provider operations that adopt or create only the configured associations. Review the first plan carefully: removing a membership, team membership, or team-repository entry changes remote access, even though removing organization settings, teams, Actions policy, or the ruleset from configuration does not destroy those remote resources.
+The first plan imports organization settings and Actions policy automatically. Read the current supported organization settings, Actions policy, and ruleset before filling the required inputs; policy values remain visible in the plan while the billing email and App key are sensitive. Provider fields outside the managed settings are ignored and preserved. A `ruleset_id` adopts an existing organization ruleset in preserve-only mode: the resource is imported but its existing enforcement, conditions, rules, and bypass actors are not reconciled by this module. After initial import, changing `ruleset_id` does not rebind existing state; explicitly remove and import the intended object at the existing resource address before changing an adoption ID. The postcondition fails if the configured ID and state object diverge.
 
-Membership resource instance keys use lowercase usernames, and team-repository keys use lowercase repository names, so case-only spelling changes do not revoke access. If state was created before this normalization, move each existing address once before planning, for example: `terraform state mv 'github_membership.member["Alice"]' 'github_membership.member["alice"]'`, `terraform state mv 'github_team_membership.member["engineering:Alice"]' 'github_team_membership.member["engineering:alice"]'`, and `terraform state mv 'github_team_repository.access["engineering:Example-Repository"]' 'github_team_repository.access["engineering:example-repository"]'`. If an existing ruleset was imported into the old managed address, move `github_organization_ruleset.default_branch["default"]` to `github_organization_ruleset.adopted_default_branch["default"]` when switching to preserve-only adoption.
+If a previous `modules/org` version managed members, teams, team memberships, or team-to-repository grants, the `removed` blocks detach those legacy resource addresses from Terraform state with `destroy = false`. Review the migration plan and confirm that those objects are reported as no longer managed rather than destroyed before applying. Terraform then leaves the existing GitHub access configuration unchanged.
+
+If an existing ruleset was imported into the old managed address, move `github_organization_ruleset.default_branch["default"]` to `github_organization_ruleset.adopted_default_branch["default"]` when switching to preserve-only adoption.
 
 The locked GitHub provider 6.13.0 does not reliably serialize `sha_pinning_required = false` or an empty selected-action pattern set. The module therefore requires SHA pinning and a non-empty `patterns_allowed` set when `allowed_actions` is `selected`; revisit these constraints after upgrading to a provider release that supports both updates.
 
