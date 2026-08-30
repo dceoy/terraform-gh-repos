@@ -133,7 +133,7 @@ The JSON example intentionally omits the required `github_app_id`, `github_app_i
 }
 ```
 
-The first plan imports organization settings and Actions policy automatically. Read the current supported organization settings, Actions policy, and ruleset before filling the required inputs; policy values remain visible in the plan while the billing email and App key are sensitive. Provider fields outside the managed settings are ignored and preserved. A `ruleset_id` adopts an existing organization ruleset in preserve-only mode: the resource is imported but its existing enforcement, conditions, rules, and bypass actors are not reconciled by this module. After initial import, changing `ruleset_id` does not rebind existing state; explicitly remove and import the intended object at the existing resource address before changing an adoption ID. The postcondition fails if the configured ID and state object diverge.
+The first plan imports organization settings and Actions policy automatically. Read the current supported organization settings, Actions policy, and ruleset before filling the required inputs; policy values remain visible in the plan while the billing email and App key are sensitive. Provider fields outside the managed settings are ignored and preserved. When `ruleset_id` is set, the existing ruleset is imported into `github_organization_ruleset.branch` and reconciled to the configured enforcement, conditions, rules, and exclusions. Configure those fields to the intended policy before the first apply. Changing `ruleset_id` after import does not rebind existing state; explicitly remove and import the intended object at the same resource address before changing the adoption ID.
 
 The locked GitHub provider 6.13.0 does not reliably serialize `sha_pinning_required = false` or an empty selected-action pattern set. The module therefore requires SHA pinning and a non-empty `patterns_allowed` set when `allowed_actions` is `selected`; revisit these constraints after upgrading to a provider release that supports both updates.
 
@@ -143,12 +143,12 @@ The locked GitHub provider 6.13.0 does not reliably serialize `sha_pinning_requi
 
 Transfer ownership in stages:
 
-1. For a new organization ruleset, omit `ruleset_id`, set `enforcement` to `disabled`, and apply `modules/org`. For an existing ruleset, provide `ruleset_id`, set the documented policy fields to the current values, and verify that it is the dedicated default-branch ruleset; ID-based adoption is preserve-only.
-2. Set a new organization ruleset to `active` and apply `modules/org`, or activate an adopted ruleset through the GitHub UI/API, while the old repository rulesets remain active. Verify that the organization ruleset targets the intended repositories and is effective.
+1. For a new organization ruleset, omit `ruleset_id`, set `enforcement` to `disabled`, and apply `modules/org`. For an existing ruleset, provide `ruleset_id`, set the documented policy fields to the intended values, and verify that it is the dedicated default-branch ruleset before applying.
+2. Set the organization ruleset to `active` and apply `modules/org` while the old repository rulesets remain active. Verify that the organization ruleset targets the intended repositories and is effective.
 3. Set `manage_default_branch_repository_rulesets` to `false` and apply `modules/repos`; its `destroy = false` lifecycle forgets repository ruleset state without deleting the remote rulesets.
 4. Deliberately remove the old repository rulesets only after active organization protection has been verified.
 
-For rollback, restore repository-level ownership and protection before disabling or removing the organization ruleset. New organization rulesets target `~ALL` repositories except configured name exclusions and otherwise match the existing default-branch policy with zero required approvals by default; adopted rulesets retain their remote policy.
+For rollback, restore repository-level ownership and protection before disabling or removing the organization ruleset. Organization rulesets target `~ALL` repositories except configured name exclusions and otherwise match the existing default-branch policy with zero required approvals by default.
 
 ## Repository inventory
 
