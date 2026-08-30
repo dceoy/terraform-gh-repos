@@ -12,13 +12,11 @@ Repository creation and destructive retirement are intentionally out of scope.
 modules/
 ├── org/
 │   ├── .terraform.lock.hcl
-│   ├── actions.tf
 │   ├── imports.tf
 │   ├── locals.tf
-│   ├── organization.tf
+│   ├── main.tf
 │   ├── outputs.tf
 │   ├── provider.tf
-│   ├── rulesets.tf
 │   ├── variables.tf
 │   └── version.tf
 └── repos/
