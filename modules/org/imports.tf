@@ -14,15 +14,6 @@ import {
 }
 
 import {
-  for_each = {
-    for key, team in var.teams : key => team
-    if team.team_id != null
-  }
-  to = github_team.team[each.key]
-  id = tostring(each.value.team_id)
-}
-
-import {
   for_each = var.default_branch_ruleset == null || var.default_branch_ruleset.ruleset_id == null ? {} : {
     default = var.default_branch_ruleset
   }
