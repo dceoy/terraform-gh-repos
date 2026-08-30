@@ -35,37 +35,13 @@ variable "github_app_pem_file" {
   }
 }
 
-variable "organization_billing_email" {
-  description = "Billing email for the managed GitHub organization."
-  type        = string
-  sensitive   = true
-  validation {
-    condition     = length(trimspace(var.organization_billing_email)) > 0
-    error_message = "organization_billing_email must not be empty."
-  }
-}
-
 variable "organization_settings" {
-  description = "Organization settings to manage explicitly. All supported settings are required so provider defaults cannot change an existing organization during adoption."
+  description = "Organization settings intentionally left configurable instead of enforced by the module policy."
   type = object({
-    default_repository_permission           = string
-    has_organization_projects               = bool
-    has_repository_projects                 = bool
-    members_can_create_repositories         = bool
-    members_can_create_public_repositories  = bool
-    members_can_create_private_repositories = bool
-    members_can_create_pages                = bool
-    members_can_create_public_pages         = bool
-    members_can_create_private_pages        = bool
-    members_can_fork_private_repositories   = bool
-    web_commit_signoff_required             = bool
+    has_organization_projects   = bool
+    has_repository_projects     = bool
+    web_commit_signoff_required = bool
   })
-  validation {
-    condition = (
-      contains(["read", "write", "admin", "none"], var.organization_settings.default_repository_permission)
-    )
-    error_message = "default_repository_permission must be read, write, admin, or none."
-  }
 }
 
 variable "actions" {
