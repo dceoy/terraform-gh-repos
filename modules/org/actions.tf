@@ -1,3 +1,19 @@
+data "github_rest_api" "managed" {
+  for_each = local.repository_names_by_lower
+  endpoint = "/repos/${var.github_owner}/${each.value}"
+
+  lifecycle {
+    postcondition {
+      condition     = self.code == 200
+      error_message = "Repository ${each.value} could not be read from the managed GitHub organization."
+    }
+    postcondition {
+      condition     = try(jsondecode(self.body).archived == false, false)
+      error_message = "Archived repository ${each.value} is outside Organization Actions management scope."
+    }
+  }
+}
+
 resource "github_actions_organization_permissions" "permissions" {
   enabled_repositories = var.actions.enabled_repositories
   allowed_actions      = var.actions.allowed_actions
