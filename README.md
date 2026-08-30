@@ -18,7 +18,6 @@ modules/
 │   ├── organization.tf
 │   ├── outputs.tf
 │   ├── provider.tf
-│   ├── removed.tf
 │   ├── rulesets.tf
 │   ├── variables.tf
 │   └── version.tf
@@ -137,10 +136,6 @@ The JSON example intentionally omits the required `github_app_id`, `github_app_i
 ```
 
 The first plan imports organization settings and Actions policy automatically. Read the current supported organization settings, Actions policy, and ruleset before filling the required inputs; policy values remain visible in the plan while the billing email and App key are sensitive. Provider fields outside the managed settings are ignored and preserved. A `ruleset_id` adopts an existing organization ruleset in preserve-only mode: the resource is imported but its existing enforcement, conditions, rules, and bypass actors are not reconciled by this module. After initial import, changing `ruleset_id` does not rebind existing state; explicitly remove and import the intended object at the existing resource address before changing an adoption ID. The postcondition fails if the configured ID and state object diverge.
-
-If a previous `modules/org` version managed members, teams, team memberships, or team-to-repository grants, the `removed` blocks detach those legacy resource addresses from Terraform state with `destroy = false`. Review the migration plan and confirm that those objects are reported as no longer managed rather than destroyed before applying. Terraform then leaves the existing GitHub access configuration unchanged.
-
-If an existing ruleset was imported into the old managed address, move `github_organization_ruleset.default_branch["default"]` to `github_organization_ruleset.adopted_default_branch["default"]` when switching to preserve-only adoption.
 
 The locked GitHub provider 6.13.0 does not reliably serialize `sha_pinning_required = false` or an empty selected-action pattern set. The module therefore requires SHA pinning and a non-empty `patterns_allowed` set when `allowed_actions` is `selected`; revisit these constraints after upgrading to a provider release that supports both updates.
 
