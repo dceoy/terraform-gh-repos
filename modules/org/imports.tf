@@ -17,6 +17,6 @@ import {
   for_each = var.default_branch_ruleset == null || var.default_branch_ruleset.ruleset_id == null ? {} : {
     default = var.default_branch_ruleset
   }
-  to = github_organization_ruleset.adopted_default_branch[each.key]
+  to = github_organization_ruleset.branch[each.key]
   id = tostring(each.value.ruleset_id)
 }
