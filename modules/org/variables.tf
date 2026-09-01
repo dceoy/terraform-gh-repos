@@ -183,10 +183,10 @@ variable "default_branch_ruleset" {
           contains(["merge", "squash", "rebase"], method)
         ])
         && var.default_branch_ruleset.required_approving_review_count >= 0
-        && var.default_branch_ruleset.required_approving_review_count <= 6
+        && var.default_branch_ruleset.required_approving_review_count <= 10
         && floor(var.default_branch_ruleset.required_approving_review_count) == var.default_branch_ruleset.required_approving_review_count
       )
     )
-    error_message = "The default branch ruleset must use a positive integer ID when set, a non-empty name and repository/ref inclusion, supported enforcement and merge methods, and zero to six required approvals."
+    error_message = "The default branch ruleset must use a positive integer ID when set, a non-empty name and repository/ref inclusion, supported enforcement and merge methods, and zero to ten required approvals."
   }
 }
