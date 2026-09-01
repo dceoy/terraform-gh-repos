@@ -119,29 +119,27 @@ The JSON example intentionally omits the required `github_app_id`, `github_app_i
     "can_approve_pull_request_reviews": false
   },
   "default_branch_ruleset": {
-    "enforcement": "disabled",
-    "repository_exclusions": [],
-    "required_approving_review_count": 0
+    "enforcement": "disabled"
   }
 }
 ```
 
-The first plan imports organization settings and Actions policy automatically. The current billing email is read from GitHub only to satisfy the provider schema and is ignored for changes, so it remains outside Terraform management. Review the effective organization setting values, Actions policy, and ruleset before the first apply. When `ruleset_id` is set, the existing ruleset is imported into `github_organization_ruleset.branch` and reconciled to the configured enforcement, conditions, rules, and exclusions. Configure those fields to the intended policy before the first apply. Changing `ruleset_id` after import does not rebind existing state; explicitly remove and import the intended object at the same resource address before changing an adoption ID.
+The first plan imports organization settings and Actions policy automatically. The current billing email is read from GitHub only to satisfy the provider schema and is ignored for changes, so it remains outside Terraform management. Review the effective organization setting values, Actions policy, and ruleset before the first apply. When `ruleset_id` is set, the existing ruleset is imported into `github_organization_ruleset.branch` and reconciled to the configured policy. Organization ruleset name, repository/ref selectors, deletion and force-push protection, linear-history policy, merge methods, review requirements, exclusions, and approval count can all be overridden through `default_branch_ruleset`; omitted fields retain the module defaults. Changing `ruleset_id` after import does not rebind existing state; explicitly remove and import the intended object at the same resource address before changing an adoption ID.
 
 The locked GitHub provider 6.13.0 does not reliably serialize `sha_pinning_required = false` or an empty selected-action pattern set. The module therefore requires SHA pinning and a non-empty `patterns_allowed` set when `allowed_actions` is `selected`; revisit these constraints after upgrading to a provider release that supports both updates.
 
 ### Organization and repository ruleset ownership
 
-`modules/repos` owns repository-level `default-branch-protection` rulesets by default. When the organization workspace owns the shared policy, set the `modules/repos` workspace variable `manage_default_branch_repository_rulesets` to `false`. Do not manage the same protection policy at both scopes.
+`modules/repos` owns repository-level `default-branch-protection` rulesets by default. Repository ruleset policy is configured through the `default_branch_ruleset` variable. When the organization workspace owns the shared policy, set the `modules/repos` workspace variable `manage_default_branch_repository_rulesets` to `false`. Do not manage the same protection policy at both scopes.
 
 Transfer ownership in stages:
 
-1. For a new organization ruleset, omit `ruleset_id`, set `enforcement` to `disabled`, and apply `modules/org`. For an existing ruleset, provide `ruleset_id`, set the documented policy fields to the intended values, and verify that it is the dedicated default-branch ruleset before applying.
+1. For a new organization ruleset, omit `ruleset_id`, set `enforcement` to `disabled`, and apply `modules/org`. For an existing ruleset, provide `ruleset_id`, set the policy fields to the intended values, and verify that it is the dedicated default-branch ruleset before applying.
 2. Set the organization ruleset to `active` and apply `modules/org` while the old repository rulesets remain active. Verify that the organization ruleset targets the intended repositories and is effective.
 3. Set `manage_default_branch_repository_rulesets` to `false` and apply `modules/repos`; its `destroy = false` lifecycle forgets repository ruleset state without deleting the remote rulesets.
 4. Deliberately remove the old repository rulesets only after active organization protection has been verified.
 
-For rollback, restore repository-level ownership and protection before disabling or removing the organization ruleset. Organization rulesets target `~ALL` repositories except configured name exclusions and otherwise match the existing default-branch policy with zero required approvals by default.
+For rollback, restore repository-level ownership and protection before disabling or removing the organization ruleset. By default, organization rulesets target `~ALL` repositories and `~DEFAULT_BRANCH`, prevent deletion and force pushes, require pull requests and resolved review threads, and require zero approvals; each of those policy values is configurable.
 
 ## Repository inventory
 
@@ -169,6 +167,8 @@ Optional synchronization metadata includes:
 - `observed_visibility`: latest visibility observed by synchronization
 - `retired`: keep the repository as a tombstone while removing it from active Terraform management
 
+Repository feature, merge, Actions, Dependabot, vulnerability-alert, and public-repository `security_and_analysis` settings are optional per-repository overrides. Omitted values use the defaults defined in `modules/repos/variables.tf`.
+
 Active entries must already exist and must not be archived. Terraform imports active repositories declaratively and fails when a configured repository is unexpectedly missing.
 
 Managed resources use Terraform 1.16 `lifecycle { destroy = false }`; retiring an entry therefore removes it from state without deleting the remote GitHub resource. `github_repository` also uses `prevent_destroy = true` to block replacement.
@@ -186,10 +186,10 @@ The workflow GitHub App needs **Metadata: Read-only** and **Administration: Read
 
 ## Managed settings
 
-Terraform manages repository feature, merge, security, Actions, and branch-ruleset settings represented by `modules/repos` and the selected inventory overrides.
+Terraform manages repository feature, merge, security, Actions, and branch-ruleset settings represented by `modules/repos` and the selected inventory overrides. Managed policy values are variable-driven; defaults reproduce the repository policy previously encoded directly in `main.tf`.
 
 Descriptions, website URLs, topics, visibility, and archive state are intentionally left unmanaged. Settings unavailable for private repositories on GitHub Free are preserved from GitHub rather than reconciled.
 
-For public repositories, the default policy enables supported security features and applies the `default-branch-protection` ruleset. The ruleset prevents deletion and force pushes, requires pull requests, and requires review threads to be resolved, with zero mandatory approvals by default.
+For public repositories, the default policy enables supported security features and applies the `default-branch-protection` ruleset. The default ruleset prevents deletion and force pushes, requires pull requests and resolved review threads, permits merge/squash/rebase, and requires zero approvals. These security and ruleset defaults can be overridden through `repositories.*.security_and_analysis` and `default_branch_ruleset` respectively.
 
 Review the HCP Terraform plan before the first apply to confirm adoption of existing repository settings.
