@@ -25,22 +25,22 @@ resource "github_repository" "repo" {
   allow_update_branch    = each.value.allow_update_branch
   delete_branch_on_merge = each.value.delete_branch_on_merge
   dynamic "security_and_analysis" {
-    for_each = contains(keys(local.public_repositories), each.key) ? [true] : []
+    for_each = contains(keys(local.public_repositories), each.key) ? [each.value.security_and_analysis] : []
     content {
       code_security {
-        status = "enabled"
+        status = security_and_analysis.value.code_security
       }
       secret_scanning {
-        status = "enabled"
+        status = security_and_analysis.value.secret_scanning
       }
       secret_scanning_push_protection {
-        status = "enabled"
+        status = security_and_analysis.value.secret_scanning_push_protection
       }
       secret_scanning_ai_detection {
-        status = "enabled"
+        status = security_and_analysis.value.secret_scanning_ai_detection
       }
       secret_scanning_non_provider_patterns {
-        status = "enabled"
+        status = security_and_analysis.value.secret_scanning_non_provider_patterns
       }
     }
   }
@@ -95,27 +95,27 @@ resource "github_workflow_repository_permissions" "actions" {
 
 resource "github_repository_ruleset" "branch" {
   for_each    = local.ruleset_repositories
-  name        = "default-branch-protection"
+  name        = var.default_branch_ruleset.name
   repository  = github_repository.repo[each.key].name
   target      = "branch"
-  enforcement = "active"
+  enforcement = var.default_branch_ruleset.enforcement
   conditions {
     ref_name {
-      include = ["~DEFAULT_BRANCH"]
-      exclude = []
+      include = sort(tolist(var.default_branch_ruleset.ref_inclusions))
+      exclude = sort(tolist(var.default_branch_ruleset.ref_exclusions))
     }
   }
   rules {
-    deletion                = true
-    non_fast_forward        = true
-    required_linear_history = false
+    deletion                = var.default_branch_ruleset.deletion
+    non_fast_forward        = var.default_branch_ruleset.non_fast_forward
+    required_linear_history = var.default_branch_ruleset.required_linear_history
     pull_request {
-      allowed_merge_methods             = ["merge", "squash", "rebase"]
-      dismiss_stale_reviews_on_push     = false
-      require_code_owner_review         = false
-      require_last_push_approval        = false
-      required_approving_review_count   = 0
-      required_review_thread_resolution = true
+      allowed_merge_methods             = sort(tolist(var.default_branch_ruleset.allowed_merge_methods))
+      dismiss_stale_reviews_on_push     = var.default_branch_ruleset.dismiss_stale_reviews_on_push
+      require_code_owner_review         = var.default_branch_ruleset.require_code_owner_review
+      require_last_push_approval        = var.default_branch_ruleset.require_last_push_approval
+      required_approving_review_count   = var.default_branch_ruleset.required_approving_review_count
+      required_review_thread_resolution = var.default_branch_ruleset.required_review_thread_resolution
     }
   }
   lifecycle {
