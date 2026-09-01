@@ -57,7 +57,7 @@ Create a second VCS-driven workspace for organization governance:
 - Execution mode: Remote
 - Terraform version: `>= 1.16.0`
 
-For a VCS-driven workspace, prefer HCP Terraform workspace or variable-set values for `github_owner`, `organization_settings`, `actions`, and the optional `default_branch_ruleset`. Do not set the file-based `TF_CLI_ARGS_*` variables below when those Terraform variables are configured in HCP.
+For a VCS-driven workspace, prefer HCP Terraform workspace or variable-set values for `github_owner`, sensitive `github_owner_token`, `organization_settings`, `actions`, and the optional `default_branch_ruleset`. Do not set the file-based `TF_CLI_ARGS_*` variables below when those Terraform variables are configured in HCP.
 
 Alternatively, load the organization environment file for plans and applies:
 
@@ -66,20 +66,21 @@ TF_CLI_ARGS_plan=-var-file="../../envs/<organization>/org.tfvars.json"
 TF_CLI_ARGS_apply=-var-file="../../envs/<organization>/org.tfvars.json"
 ```
 
-Because `.gitignore` excludes `*.tfvars.json`, an HCP VCS workspace can use the file-based option only when the file is deliberately reviewed and force-added, for example with `git add -f envs/<organization>/org.tfvars.json`. Keep App credentials in sensitive HCP variables and do not force-add private keys. Keep the `modules/org` and `modules/repos` workspaces and state separate. Configure the organization workspace to trigger on `modules/org/**` and, when tracked, its selected environment file.
+Because `.gitignore` excludes `*.tfvars.json`, an HCP VCS workspace can use the file-based option only when the file is deliberately reviewed and force-added, for example with `git add -f envs/<organization>/org.tfvars.json`. Keep App credentials and the organization-owner user token in sensitive HCP variables and do not force-add private keys or tokens. Keep the `modules/org` and `modules/repos` workspaces and state separate. Configure the organization workspace to trigger on `modules/org/**` and, when tracked, its selected environment file.
 
-### GitHub App permissions
+### Authentication and GitHub App permissions
 
-Create and install a private GitHub App for the organization Terraform manages. The `modules/org` workspace requires explicit App authentication; grant only the permissions needed by the configured resources:
+Create and install a private GitHub App for the organization Terraform manages. The `modules/org` workspace uses App installation authentication for Actions policy and rulesets, while organization settings use a separate organization-owner user token so private organization fields can be read reliably.
 
-1. Grant organization **Administration: Read and write** for organization settings, Actions policy, and rulesets.
-2. Grant repository **Metadata: Read-only** when `actions.enabled_repositories` is `selected`, so configured repository IDs can be resolved.
+1. Grant the App organization **Administration: Read and write** for Actions policy and rulesets.
+2. Grant the App repository **Metadata: Read-only** when `actions.enabled_repositories` is `selected`, so configured repository IDs can be resolved.
 3. Install the App on the organization and on any repositories required by a selected Actions policy.
-4. Record the App ID and installation ID, generate a private key, and set `github_app_id`, `github_app_installation_id`, and sensitive `github_app_pem_file` as Terraform variables in the `modules/org` HCP Terraform workspace. The organization root does not use token or CLI fallback, and ambient `GITHUB_APP_*` variables cannot replace these inputs.
+4. Record the App ID and installation ID, generate a private key, and set `github_app_id`, `github_app_installation_id`, and sensitive `github_app_pem_file` as Terraform variables in the `modules/org` HCP Terraform workspace. Ambient `GITHUB_APP_*` variables cannot replace these inputs.
+5. Set sensitive `github_owner_token` to a user token belonging to an owner of the managed organization. A fine-grained personal access token or GitHub App user access token needs organization **Administration: Read and write** for the update path; a personal access token (classic) needs `admin:org`. This token is used only by the aliased provider for `github_organization_settings` and its private organization read path.
 
 `modules/org` does not require organization **Members** permission or repository **Administration** permission because it does not manage members, teams, memberships, or team-to-repository access. If the same App is also used by `modules/repos`, grant the separate repository permissions required by that root.
 
-The selected organization settings, Actions, and ruleset operations use GitHub App installation authentication; a user token is not required for this scope. `github_owner` comes from the selected tfvars file or HCP Terraform variables. The provider receives both `owner` and its deprecated `organization` setting from that same value because provider 6.13.0 checks the legacy setting first; unset both `GITHUB_OWNER` and `GITHUB_ORGANIZATION` in local and HCP execution environments so ambient selectors cannot redirect the root.
+The default provider uses GitHub App installation authentication for Actions policy, repository metadata lookup, and organization rulesets. The `github.owner` provider alias uses `github_owner_token` only for organization settings and the billing-email read required by the provider schema. `github_owner` comes from the selected tfvars file or HCP Terraform variables. Both providers receive `owner` and the deprecated `organization` setting from that same value because provider 6.13.0 checks the legacy setting first; unset both `GITHUB_OWNER` and `GITHUB_ORGANIZATION` in local and HCP execution environments so ambient selectors cannot redirect the root. There is no GitHub CLI credential fallback when the required App credentials and owner token are configured.
 
 ## Organization governance
 
@@ -95,7 +96,7 @@ The module intentionally excludes Enterprise-only or separately billed capabilit
 
 Create `envs/<organization>/org.tfvars.json` for the organization workspace. The file is ignored by default because it contains organization-specific data. Provide only organization setting overrides that differ from the module defaults, and provide `ruleset_id` only when adopting an existing organization ruleset.
 
-The JSON example intentionally omits the required `github_app_id`, `github_app_installation_id`, and `github_app_pem_file` inputs. Supply those values separately through sensitive HCP Terraform variables or securely exported `TF_VAR_*` inputs; never store the private key in the environment file.
+The JSON example intentionally omits the required `github_owner_token`, `github_app_id`, `github_app_installation_id`, and `github_app_pem_file` inputs. Supply those values separately through sensitive HCP Terraform variables or securely exported `TF_VAR_*` inputs; never store user tokens or the App private key in the environment file.
 
 ```json
 {
@@ -124,7 +125,7 @@ The JSON example intentionally omits the required `github_app_id`, `github_app_i
 }
 ```
 
-The first plan imports organization settings and Actions policy automatically. The current billing email is read from GitHub only to satisfy the provider schema and is ignored for changes, so it remains outside Terraform management. Review the effective organization setting values, Actions policy, and ruleset before the first apply. When `ruleset_id` is set, the existing ruleset is imported into `github_organization_ruleset.branch` and reconciled to the configured policy. Organization ruleset name, repository/ref selectors, deletion and force-push protection, linear-history policy, merge methods, review requirements, exclusions, and approval count can all be overridden through `default_branch_ruleset`; omitted fields retain the module defaults. Changing `ruleset_id` after import does not rebind existing state; explicitly remove and import the intended object at the same resource address before changing an adoption ID.
+The first plan imports organization settings and Actions policy automatically. The current billing email is read through the organization-owner provider only to satisfy the provider schema and is ignored for changes, so it remains outside Terraform management. Review the effective organization setting values, Actions policy, and ruleset before the first apply. When `ruleset_id` is set, the existing ruleset is imported into `github_organization_ruleset.branch` and reconciled to the configured policy. Organization ruleset name, repository/ref selectors, deletion and force-push protection, linear-history policy, merge methods, review requirements, exclusions, and approval count can all be overridden through `default_branch_ruleset`; omitted fields retain the module defaults. Changing `ruleset_id` after import does not rebind existing state; explicitly remove and import the intended object at the same resource address before changing an adoption ID.
 
 The locked GitHub provider 6.13.0 does not reliably serialize `sha_pinning_required = false` or an empty selected-action pattern set. The module therefore requires SHA pinning and a non-empty `patterns_allowed` set when `allowed_actions` is `selected`; revisit these constraints after upgrading to a provider release that supports both updates.
 
