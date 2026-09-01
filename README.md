@@ -83,7 +83,7 @@ The selected organization settings, Actions, and ruleset operations use GitHub A
 
 ## Organization governance
 
-`modules/org` manages organization governance rather than organization profile or billing metadata. `has_organization_projects`, `has_repository_projects`, and `web_commit_signoff_required` remain explicit inputs. The module enforces `default_repository_permission = "none"`, disables member-created repositories and Pages sites, disables private-repository forking, and enables Dependency Graph, Dependabot alerts, and Dependabot security updates for new repositories. Repository-specific workflow permissions remain in `modules/repos`.
+`modules/org` manages organization governance rather than organization profile or billing metadata. Like `modules/repos`, managed organization settings are configurable through Terraform variables and use policy-oriented defaults when omitted. The defaults set `default_repository_permission = "none"`, enable organization and repository Projects plus web commit signoff, disable member-created repositories and Pages sites, disable private-repository forking, and enable Dependency Graph, Dependabot alerts, and Dependabot security updates for new repositories. Repository-specific workflow permissions remain in `modules/repos`.
 
 Billing email and profile metadata such as company, public email, name, description, blog, location, and Twitter username are preserved outside Terraform management. Advanced Security and secret-scanning defaults remain unmanaged because availability and billing depend on the organization plan. Internal-repository creation policy is also left unmanaged because it is Enterprise-specific.
 
@@ -93,7 +93,7 @@ The module intentionally excludes Enterprise-only or separately billed capabilit
 
 ### Organization environment file
 
-Create `envs/<organization>/org.tfvars.json` for the organization workspace. The file is ignored by default because it contains organization-specific data. Provide `ruleset_id` only when adopting an existing organization ruleset.
+Create `envs/<organization>/org.tfvars.json` for the organization workspace. The file is ignored by default because it contains organization-specific data. Provide only organization setting overrides that differ from the module defaults, and provide `ruleset_id` only when adopting an existing organization ruleset.
 
 The JSON example intentionally omits the required `github_app_id`, `github_app_installation_id`, and `github_app_pem_file` inputs. Supply those values separately through sensitive HCP Terraform variables or securely exported `TF_VAR_*` inputs; never store the private key in the environment file.
 
@@ -126,7 +126,7 @@ The JSON example intentionally omits the required `github_app_id`, `github_app_i
 }
 ```
 
-The first plan imports organization settings and Actions policy automatically. The current billing email is read from GitHub only to satisfy the provider schema and is ignored for changes, so it remains outside Terraform management. Review the project settings, web commit signoff policy, Actions policy, and ruleset before filling the required inputs. When `ruleset_id` is set, the existing ruleset is imported into `github_organization_ruleset.branch` and reconciled to the configured enforcement, conditions, rules, and exclusions. Configure those fields to the intended policy before the first apply. Changing `ruleset_id` after import does not rebind existing state; explicitly remove and import the intended object at the same resource address before changing the adoption ID.
+The first plan imports organization settings and Actions policy automatically. The current billing email is read from GitHub only to satisfy the provider schema and is ignored for changes, so it remains outside Terraform management. Review the effective organization setting values, Actions policy, and ruleset before the first apply. When `ruleset_id` is set, the existing ruleset is imported into `github_organization_ruleset.branch` and reconciled to the configured enforcement, conditions, rules, and exclusions. Configure those fields to the intended policy before the first apply. Changing `ruleset_id` after import does not rebind existing state; explicitly remove and import the intended object at the same resource address before changing an adoption ID.
 
 The locked GitHub provider 6.13.0 does not reliably serialize `sha_pinning_required = false` or an empty selected-action pattern set. The module therefore requires SHA pinning and a non-empty `patterns_allowed` set when `allowed_actions` is `selected`; revisit these constraints after upgrading to a provider release that supports both updates.
 
