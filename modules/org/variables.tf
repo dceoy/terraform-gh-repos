@@ -36,12 +36,35 @@ variable "github_app_pem_file" {
 }
 
 variable "organization_settings" {
-  description = "Organization settings intentionally left configurable instead of enforced by the module policy."
+  description = "Organization settings managed by this Terraform configuration."
   type = object({
-    has_organization_projects   = bool
-    has_repository_projects     = bool
-    web_commit_signoff_required = bool
+    default_repository_permission                            = optional(string, "none")
+    has_organization_projects                                = optional(bool, true)
+    has_repository_projects                                  = optional(bool, true)
+    members_can_create_repositories                          = optional(bool, false)
+    members_can_create_public_repositories                   = optional(bool, false)
+    members_can_create_private_repositories                  = optional(bool, false)
+    members_can_create_pages                                 = optional(bool, false)
+    members_can_create_public_pages                          = optional(bool, false)
+    members_can_create_private_pages                         = optional(bool, false)
+    members_can_fork_private_repositories                    = optional(bool, false)
+    web_commit_signoff_required                              = optional(bool, true)
+    dependency_graph_enabled_for_new_repositories            = optional(bool, true)
+    dependabot_alerts_enabled_for_new_repositories           = optional(bool, true)
+    dependabot_security_updates_enabled_for_new_repositories = optional(bool, true)
   })
+  default = {}
+  validation {
+    condition     = contains(["none", "read", "write", "admin"], var.organization_settings.default_repository_permission)
+    error_message = "default_repository_permission must be none, read, write, or admin."
+  }
+  validation {
+    condition = (
+      !var.organization_settings.dependabot_security_updates_enabled_for_new_repositories
+      || var.organization_settings.dependabot_alerts_enabled_for_new_repositories
+    )
+    error_message = "Dependabot security updates for new repositories require Dependabot alerts to be enabled."
+  }
 }
 
 variable "actions" {
