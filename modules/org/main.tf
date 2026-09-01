@@ -4,6 +4,7 @@ data "github_organization" "current" {
 }
 
 data "github_rest_api" "organization" {
+  provider = github.owner
   endpoint = "/orgs/${var.github_owner}"
   lifecycle {
     postcondition {
@@ -33,6 +34,7 @@ data "github_rest_api" "managed" {
 }
 
 resource "github_organization_settings" "settings" {
+  provider                                                 = github.owner
   billing_email                                            = jsondecode(data.github_rest_api.organization.body).billing_email
   default_repository_permission                            = var.organization_settings.default_repository_permission
   has_organization_projects                                = var.organization_settings.has_organization_projects
