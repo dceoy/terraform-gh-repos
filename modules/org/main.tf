@@ -138,6 +138,7 @@ resource "github_organization_ruleset" "branch" {
     destroy = false
     ignore_changes = [
       bypass_actors,
+      conditions[0].repository_name[0].protected,
       rules[0].creation,
       rules[0].update,
       rules[0].required_signatures,
