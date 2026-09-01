@@ -106,29 +106,30 @@ resource "github_organization_ruleset" "branch" {
   for_each = var.default_branch_ruleset == null ? {} : {
     default = var.default_branch_ruleset
   }
-  name        = "default-branch-protection"
+  name        = each.value.name
   target      = "branch"
   enforcement = each.value.enforcement
   conditions {
     repository_name {
-      include = ["~ALL"]
+      include = sort(tolist(each.value.repository_inclusions))
       exclude = sort(tolist(each.value.repository_exclusions))
     }
     ref_name {
-      include = ["~DEFAULT_BRANCH"]
-      exclude = []
+      include = sort(tolist(each.value.ref_inclusions))
+      exclude = sort(tolist(each.value.ref_exclusions))
     }
   }
   rules {
-    deletion         = true
-    non_fast_forward = true
+    deletion                = each.value.deletion
+    non_fast_forward        = each.value.non_fast_forward
+    required_linear_history = each.value.required_linear_history
     pull_request {
-      allowed_merge_methods             = ["merge", "squash", "rebase"]
-      dismiss_stale_reviews_on_push     = false
-      require_code_owner_review         = false
-      require_last_push_approval        = false
+      allowed_merge_methods             = sort(tolist(each.value.allowed_merge_methods))
+      dismiss_stale_reviews_on_push     = each.value.dismiss_stale_reviews_on_push
+      require_code_owner_review         = each.value.require_code_owner_review
+      require_last_push_approval        = each.value.require_last_push_approval
       required_approving_review_count   = each.value.required_approving_review_count
-      required_review_thread_resolution = true
+      required_review_thread_resolution = each.value.required_review_thread_resolution
     }
   }
   lifecycle {
