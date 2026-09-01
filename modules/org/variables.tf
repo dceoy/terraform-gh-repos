@@ -124,12 +124,24 @@ variable "actions" {
 }
 
 variable "default_branch_ruleset" {
-  description = "Optional shared organization default-branch ruleset. Enforcement, exclusions, and approval count must be explicit; set enforcement to disabled for the initial adoption apply."
+  description = "Optional shared organization default-branch ruleset. Enforcement must be explicit; set it to disabled for the initial adoption apply. Other policy values use the repository ruleset defaults when omitted."
   type = object({
-    ruleset_id                      = optional(number)
-    enforcement                     = string
-    repository_exclusions           = set(string)
-    required_approving_review_count = number
+    ruleset_id                        = optional(number)
+    name                              = optional(string, "default-branch-protection")
+    enforcement                       = string
+    repository_inclusions             = optional(set(string), ["~ALL"])
+    repository_exclusions             = optional(set(string), [])
+    ref_inclusions                    = optional(set(string), ["~DEFAULT_BRANCH"])
+    ref_exclusions                    = optional(set(string), [])
+    deletion                          = optional(bool, true)
+    non_fast_forward                  = optional(bool, true)
+    required_linear_history           = optional(bool, false)
+    allowed_merge_methods             = optional(set(string), ["merge", "squash", "rebase"])
+    dismiss_stale_reviews_on_push     = optional(bool, false)
+    require_code_owner_review         = optional(bool, false)
+    require_last_push_approval        = optional(bool, false)
+    required_approving_review_count   = optional(number, 0)
+    required_review_thread_resolution = optional(bool, true)
   })
   default = null
   validation {
@@ -143,18 +155,28 @@ variable "default_branch_ruleset" {
             && floor(var.default_branch_ruleset.ruleset_id) == var.default_branch_ruleset.ruleset_id
           )
         )
-        && contains(["active", "disabled"], var.default_branch_ruleset.enforcement)
+        && length(trimspace(var.default_branch_ruleset.name)) > 0
+        && contains(["active", "disabled", "evaluate"], var.default_branch_ruleset.enforcement)
+        && length(var.default_branch_ruleset.repository_inclusions) > 0
+        && alltrue([
+          for repository in setunion(var.default_branch_ruleset.repository_inclusions, var.default_branch_ruleset.repository_exclusions) :
+          length(trimspace(repository)) > 0
+        ])
+        && length(var.default_branch_ruleset.ref_inclusions) > 0
+        && alltrue([
+          for pattern in setunion(var.default_branch_ruleset.ref_inclusions, var.default_branch_ruleset.ref_exclusions) :
+          length(trimspace(pattern)) > 0
+        ])
+        && length(var.default_branch_ruleset.allowed_merge_methods) > 0
+        && alltrue([
+          for method in var.default_branch_ruleset.allowed_merge_methods :
+          contains(["merge", "squash", "rebase"], method)
+        ])
         && var.default_branch_ruleset.required_approving_review_count >= 0
         && var.default_branch_ruleset.required_approving_review_count <= 6
         && floor(var.default_branch_ruleset.required_approving_review_count) == var.default_branch_ruleset.required_approving_review_count
-        && alltrue([
-          for repository in var.default_branch_ruleset.repository_exclusions : length(trimspace(repository)) > 0
-        ])
-        && length(distinct([
-          for repository in var.default_branch_ruleset.repository_exclusions : lower(repository)
-        ])) == length(var.default_branch_ruleset.repository_exclusions)
       )
     )
-    error_message = "The default branch ruleset must use a positive integer ID when set, active or disabled enforcement, zero to six approvals, and non-empty repository exclusions."
+    error_message = "The default branch ruleset must use a positive integer ID when set, a non-empty name and repository/ref inclusion, supported enforcement and merge methods, and zero to six required approvals."
   }
 }
