@@ -196,4 +196,12 @@ variable "repositories" {
     ])
     error_message = "Repository security and analysis statuses must be enabled or disabled."
   }
+  validation {
+    condition = alltrue([
+      for repo in values(var.repositories) :
+      repo.security_and_analysis.secret_scanning_push_protection == "disabled"
+      || repo.security_and_analysis.secret_scanning == "enabled"
+    ])
+    error_message = "Secret scanning must be enabled when secret scanning push protection is enabled."
+  }
 }
