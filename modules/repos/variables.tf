@@ -46,6 +46,46 @@ variable "manage_default_branch_repository_rulesets" {
   default     = true
 }
 
+variable "default_branch_ruleset" {
+  description = "Shared default-branch repository ruleset policy."
+  type = object({
+    name                              = optional(string, "default-branch-protection")
+    enforcement                       = optional(string, "active")
+    ref_inclusions                    = optional(set(string), ["~DEFAULT_BRANCH"])
+    ref_exclusions                    = optional(set(string), [])
+    deletion                          = optional(bool, true)
+    non_fast_forward                  = optional(bool, true)
+    required_linear_history           = optional(bool, false)
+    allowed_merge_methods             = optional(set(string), ["merge", "squash", "rebase"])
+    dismiss_stale_reviews_on_push     = optional(bool, false)
+    require_code_owner_review         = optional(bool, false)
+    require_last_push_approval        = optional(bool, false)
+    required_approving_review_count   = optional(number, 0)
+    required_review_thread_resolution = optional(bool, true)
+  })
+  default = {}
+  validation {
+    condition = (
+      length(trimspace(var.default_branch_ruleset.name)) > 0
+      && contains(["active", "disabled"], var.default_branch_ruleset.enforcement)
+      && length(var.default_branch_ruleset.ref_inclusions) > 0
+      && alltrue([
+        for pattern in setunion(var.default_branch_ruleset.ref_inclusions, var.default_branch_ruleset.ref_exclusions) :
+        length(trimspace(pattern)) > 0
+      ])
+      && length(var.default_branch_ruleset.allowed_merge_methods) > 0
+      && alltrue([
+        for method in var.default_branch_ruleset.allowed_merge_methods :
+        contains(["merge", "squash", "rebase"], method)
+      ])
+      && var.default_branch_ruleset.required_approving_review_count >= 0
+      && var.default_branch_ruleset.required_approving_review_count <= 6
+      && floor(var.default_branch_ruleset.required_approving_review_count) == var.default_branch_ruleset.required_approving_review_count
+    )
+    error_message = "The default branch ruleset must have a non-empty name and ref inclusion, active or disabled enforcement, supported merge methods, and zero to six required approvals."
+  }
+}
+
 variable "repositories" {
   description = "Repositories tracked by this Terraform configuration. Map keys are stable Terraform identities; retired entries are retained as tombstones but excluded from management."
   type = map(object({
@@ -68,6 +108,13 @@ variable "repositories" {
     can_approve_pull_request_reviews = optional(bool, true)
     vulnerability_alerts             = optional(bool, true)
     dependabot_security_updates      = optional(bool, true)
+    security_and_analysis = optional(object({
+      code_security                         = optional(string, "enabled")
+      secret_scanning                       = optional(string, "enabled")
+      secret_scanning_push_protection       = optional(string, "enabled")
+      secret_scanning_ai_detection          = optional(string, "enabled")
+      secret_scanning_non_provider_patterns = optional(string, "enabled")
+    }), {})
   }))
   default = {}
   validation {
@@ -134,5 +181,19 @@ variable "repositories" {
       !repo.dependabot_security_updates || repo.vulnerability_alerts
     ])
     error_message = "Dependabot security updates require vulnerability alerts to be enabled."
+  }
+  validation {
+    condition = alltrue([
+      for repo in values(var.repositories) : alltrue([
+        for status in [
+          repo.security_and_analysis.code_security,
+          repo.security_and_analysis.secret_scanning,
+          repo.security_and_analysis.secret_scanning_push_protection,
+          repo.security_and_analysis.secret_scanning_ai_detection,
+          repo.security_and_analysis.secret_scanning_non_provider_patterns,
+        ] : contains(["enabled", "disabled"], status)
+      ])
+    ])
+    error_message = "Repository security and analysis statuses must be enabled or disabled."
   }
 }
