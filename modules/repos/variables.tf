@@ -79,10 +79,10 @@ variable "default_branch_ruleset" {
         contains(["merge", "squash", "rebase"], method)
       ])
       && var.default_branch_ruleset.required_approving_review_count >= 0
-      && var.default_branch_ruleset.required_approving_review_count <= 6
+      && var.default_branch_ruleset.required_approving_review_count <= 10
       && floor(var.default_branch_ruleset.required_approving_review_count) == var.default_branch_ruleset.required_approving_review_count
     )
-    error_message = "The default branch ruleset must have a non-empty name and ref inclusion, active, disabled, or evaluate enforcement, supported merge methods, and zero to six required approvals."
+    error_message = "The default branch ruleset must have a non-empty name and ref inclusion, active, disabled, or evaluate enforcement, supported merge methods, and zero to ten required approvals."
   }
 }
 
