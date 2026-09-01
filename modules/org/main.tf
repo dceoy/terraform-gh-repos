@@ -134,5 +134,29 @@ resource "github_organization_ruleset" "branch" {
   }
   lifecycle {
     destroy = false
+    ignore_changes = [
+      bypass_actors,
+      rules[0].creation,
+      rules[0].update,
+      rules[0].required_signatures,
+      rules[0].pull_request[0].required_reviewers,
+      rules[0].copilot_code_review,
+      rules[0].required_status_checks,
+      rules[0].commit_message_pattern,
+      rules[0].commit_author_email_pattern,
+      rules[0].committer_email_pattern,
+      rules[0].branch_name_pattern,
+      rules[0].tag_name_pattern,
+      rules[0].required_workflows,
+      rules[0].required_code_scanning,
+      rules[0].file_path_restriction,
+      rules[0].max_file_size,
+      rules[0].max_file_path_length,
+      rules[0].file_extension_restriction,
+    ]
+    postcondition {
+      condition     = each.value.ruleset_id == null || self.ruleset_id == each.value.ruleset_id
+      error_message = "Configured ruleset_id does not match the adopted GitHub ruleset. Rebind state explicitly before changing the adoption ID."
+    }
   }
 }
