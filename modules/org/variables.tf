@@ -7,6 +7,16 @@ variable "github_owner" {
   }
 }
 
+variable "github_owner_token" {
+  description = "GitHub user token for an organization owner, used only for organization settings and their private read path."
+  type        = string
+  sensitive   = true
+  validation {
+    condition     = length(trimspace(var.github_owner_token)) > 0
+    error_message = "github_owner_token must contain a non-empty organization-owner user token."
+  }
+}
+
 variable "github_app_id" {
   description = "GitHub App ID used for provider authentication. This organization governance root requires explicit App authentication."
   type        = string
