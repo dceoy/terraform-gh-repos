@@ -10,3 +10,10 @@ provider "github" {
     pem_file        = var.github_app_pem_file
   }
 }
+
+provider "github" {
+  alias        = "owner"
+  owner        = var.github_owner
+  organization = var.github_owner
+  token        = var.github_owner_token
+}
