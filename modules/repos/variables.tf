@@ -67,7 +67,7 @@ variable "default_branch_ruleset" {
   validation {
     condition = (
       length(trimspace(var.default_branch_ruleset.name)) > 0
-      && contains(["active", "disabled"], var.default_branch_ruleset.enforcement)
+      && contains(["active", "disabled", "evaluate"], var.default_branch_ruleset.enforcement)
       && length(var.default_branch_ruleset.ref_inclusions) > 0
       && alltrue([
         for pattern in setunion(var.default_branch_ruleset.ref_inclusions, var.default_branch_ruleset.ref_exclusions) :
@@ -82,7 +82,7 @@ variable "default_branch_ruleset" {
       && var.default_branch_ruleset.required_approving_review_count <= 6
       && floor(var.default_branch_ruleset.required_approving_review_count) == var.default_branch_ruleset.required_approving_review_count
     )
-    error_message = "The default branch ruleset must have a non-empty name and ref inclusion, active or disabled enforcement, supported merge methods, and zero to six required approvals."
+    error_message = "The default branch ruleset must have a non-empty name and ref inclusion, active, disabled, or evaluate enforcement, supported merge methods, and zero to six required approvals."
   }
 }
 
