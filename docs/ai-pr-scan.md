@@ -1,27 +1,24 @@
-# GitHub security settings not yet managed by the GitHub Terraform provider
+# GitHub repository governance: free features only
 
-The repository uses `integrations/github` for supported settings. The dedicated AI pull-request scan setting is not the same as `security_and_analysis.secret_scanning_ai_detection`.
+Use the GitHub Terraform provider for supported settings. Do not enable separately billed features through this repository. In particular, `security_and_analysis.secret_scanning_ai_detection` is not AI pull-request scanning.
 
-## AI pull-request scanning
+## Free security features
 
-The script uses the dedicated GitHub REST API and selects only non-retired repositories explicitly marked public in `repos.tfvars.json`. It does not mutate any repository unless `--apply` is supplied.
+The existing Terraform module manages vulnerability alerts, Dependabot security updates, repository rulesets and applicable free repository security settings. Preserve these resources instead of duplicating them through `gh api`.
 
-```bash
-bash scripts/sync-ai-pr-scan.sh envs/dceoy/repos.tfvars.json enabled
-GH_TOKEN=... bash scripts/sync-ai-pr-scan.sh envs/dceoy/repos.tfvars.json enabled --apply
+CodeQL on eligible public repositories can use GitHub's free code scanning offering, but confirm eligibility before enabling default setup. No CodeQL API reconciliation is introduced here.
+
+## Excluded paid or uncertain-cost services
+
+AI pull-request scanning, GitHub Copilot cloud agent, and paid GitHub Code Security or Secret Protection entitlements are excluded. Do not run the previous AI scan reconciliation script; it has been removed. Organization-level security configurations are also out of scope for this personal-account inventory.
+
+## GitHub Sponsors
+
+GitHub Sponsors is a funding feature, not a repository security setting. GitHub displays sponsor links using `.github/FUNDING.yml`; this repository already declares:
+
+```yaml
+github:
+  - dceoy
 ```
 
-The applying token must have repository Administration: write permission. API failures stop processing. This is **not declarative Terraform management**: no state or drift detection is provided. Account eligibility and billing must be verified before enabling scans. Do not commit credentials.
-
-## Other API-only or partially managed settings
-
-| Feature | GitHub API | Adoption decision |
-| --- | --- | --- |
-| AI pull-request scanning | `PATCH /repos/{owner}/{repo}/code-scanning/ai-scan` | Manual opt-in reconciliation above |
-| CodeQL default setup | `PATCH /repos/{owner}/{repo}/code-scanning/default-setup` | Not automatically enabled: language support, existing workflows and billing require per-repository review |
-| Code security configurations | `/orgs/{org}/code-security/configurations` | Organization-only; not applicable to a personal account |
-| Copilot cloud agent configuration | GitHub Copilot API | Excluded: availability and API stability require verification |
-
-The GitHub provider already supports repository rulesets, vulnerability alerts, Dependabot security updates, and several secret scanning controls. Keep these in Terraform rather than duplicating them with `gh api`.
-
-Do not run an API reconciliation automatically on each Terraform apply: it would not be tracked by Terraform state. If declarative state management becomes available through a suitable provider, migrate this functionality and remove the script.
+No Terraform or REST API resource is required to publish that funding link. The account must separately be eligible for and enrolled in GitHub Sponsors for the link to work. Existing funding metadata is intentionally left unchanged.
