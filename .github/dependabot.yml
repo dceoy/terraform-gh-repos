@@ -8,6 +8,10 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 10
+    groups:
+      github-actions-dependencies:
+        patterns:
+          - '*'
   - package-ecosystem: terraform
     directories:
       - /modules/repos/
@@ -19,4 +23,5 @@ updates:
     open-pull-requests-limit: 10
     groups:
       terraform-dependencies:
-        group-by: dependency-name
+        patterns:
+          - '*'
