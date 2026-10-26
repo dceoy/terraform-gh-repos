@@ -44,10 +44,8 @@ jobs:
   terraform-lint-and-scan:
     if: >
       github.event_name == 'push'
-      || (
-        github.event_name == 'pull_request'
-        && (! startswith(github.head_ref, 'dependabot/terraform/'))
-      ) || (github.event_name == 'workflow_dispatch' && inputs.workflow == 'lint-and-scan')
+      || github.event_name == 'pull_request'
+      || (github.event_name == 'workflow_dispatch' && inputs.workflow == 'lint-and-scan')
     permissions:
       contents: write
     uses: dceoy/gha-for-devops/.github/workflows/terraform-lint-and-scan.yml@main  # zizmor: ignore[unpinned-uses]
@@ -55,34 +53,22 @@ jobs:
       submit-dependencies: true
       snapshot-correlator: terraform-source
       search-path: .
-  terraform-lock-files-upgrade-and-pr-merge:
-    if: >
-      (
-        github.event_name == 'pull_request'
-        && startswith(github.head_ref, 'dependabot/terraform/')
-      ) || (github.event_name == 'workflow_dispatch' && inputs.workflow == 'upgrade')
+  terraform-lock-files-upgrade:
+    if: github.event_name == 'workflow_dispatch' && inputs.workflow == 'upgrade'
     permissions:
       contents: write
       pull-requests: write
-      actions: read
-      security-events: write
-    uses: dceoy/gha-for-devops/.github/workflows/terraform-lock-files-upgrade-and-pr-merge.yml@main  # zizmor: ignore[unpinned-uses]
+    uses: dceoy/gha-for-devops/.github/workflows/terraform-lock-files-upgrade.yml@main  # zizmor: ignore[unpinned-uses]
     with:
       terraform-working-directories: |
         modules/repos
         modules/org
-      merged-pr-branch-prefix: dependabot/terraform/
-      merge-pr-head-branch-prefix: dependabot/terraform/
-      merge-pr-author-allowlist: dependabot[bot]
-      search-path-for-lint-and-scan: .
-      merge-pr: ${{ github.event_name == 'pull_request' }}
     secrets:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
   dependabot-auto-merge:
     if: >
       github.event_name == 'pull_request'
       && github.actor == 'dependabot[bot]'
-      && (! startswith(github.head_ref, 'dependabot/terraform/'))
     needs:
       - shell-lint
       - bats-test
