@@ -27,7 +27,7 @@ jobs:
       || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
-    uses: dceoy/gha-for-devops/.github/workflows/shell-lint.yml@main  # zizmor: ignore[unpinned-uses]
+    uses: dceoy/gha-for-devops/.github/workflows/shell-lint.yml@9e394d7c18b3a00fb853cd3c693cc4eeb5f0c825  # v2.3.0
     with:
       search-path: .
       use-shfmt: true
@@ -38,7 +38,7 @@ jobs:
       || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
-    uses: dceoy/gha-for-devops/.github/workflows/bats-test.yml@main  # zizmor: ignore[unpinned-uses]
+    uses: dceoy/gha-for-devops/.github/workflows/bats-test.yml@9e394d7c18b3a00fb853cd3c693cc4eeb5f0c825  # v2.3.0
     with:
       search-path: .
   terraform-lint-and-scan:
@@ -48,7 +48,7 @@ jobs:
       || (github.event_name == 'workflow_dispatch' && inputs.workflow == 'lint-and-scan')
     permissions:
       contents: write
-    uses: dceoy/gha-for-devops/.github/workflows/terraform-lint-and-scan.yml@main  # zizmor: ignore[unpinned-uses]
+    uses: dceoy/gha-for-devops/.github/workflows/terraform-lint-and-scan.yml@9e394d7c18b3a00fb853cd3c693cc4eeb5f0c825  # v2.3.0
     with:
       submit-dependencies: true
       snapshot-correlator: terraform-source
@@ -58,7 +58,7 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    uses: dceoy/gha-for-devops/.github/workflows/terraform-lock-files-upgrade.yml@main  # zizmor: ignore[unpinned-uses]
+    uses: dceoy/gha-for-devops/.github/workflows/terraform-lock-files-upgrade.yml@9e394d7c18b3a00fb853cd3c693cc4eeb5f0c825  # v2.3.0
     with:
       terraform-working-directories: |
         modules/repos
@@ -79,7 +79,7 @@ jobs:
       actions: read
       checks: read
       statuses: read
-    uses: dceoy/gha-for-devops/.github/workflows/dependabot-auto-merge.yml@main  # zizmor: ignore[unpinned-uses]
+    uses: dceoy/gha-for-devops/.github/workflows/dependabot-auto-merge.yml@9e394d7c18b3a00fb853cd3c693cc4eeb5f0c825  # v2.3.0
     with:
       unconditional: true
     secrets:
