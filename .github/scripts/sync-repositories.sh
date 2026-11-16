@@ -297,7 +297,7 @@ if [[ -n "$moved_file" && -f "$moved_file" ]]; then
 fi
 
 if ((move_count > 0)); then
-  if [[ -L "$moved_file" || ( -e "$moved_file" && ! -f "$moved_file" ) ]]; then
+  if [[ -L "$moved_file" || (-e "$moved_file" && ! -f "$moved_file") ]]; then
     echo "Terraform moved-file destination must be a regular file: $moved_file" >&2
     exit 1
   fi
