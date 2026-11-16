@@ -308,7 +308,7 @@ if (( move_count > 0 )); then
         "github_workflow_repository_permissions.actions",
         "github_repository_ruleset.branch"
       ][]
-    | "moved {\\n  from = \\(.)[\\($move.from | tojson)]\\n  to   = \\(.)[\\($move.to | tojson)]\\n}\\n"
+    | "moved {\n  from = \(.)[\($move.from | tojson)]\n  to   = \(.)[\($move.to | tojson)]\n}\n"
   ' "$result_file" >> "$moved_tmp"
 fi
 
