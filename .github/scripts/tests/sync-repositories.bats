@@ -258,7 +258,7 @@ JSON
   run bash "$script" --tfvars-json "$inventory" --repositories-json "$api"
 
   [ "$status" -ne 0 ]
-  [[ "$output" == *"Repository names must not reuse another stable Terraform key: beta -> alpha"* ]]
+  [[ "$output" == *"Cannot rename beta: target key alpha is already reserved"* ]]
 }
 
 @test "discovers repositories and repository rulesets with gh" {
