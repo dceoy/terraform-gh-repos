@@ -38,6 +38,7 @@ jobs:
         run: >
           bash .github/scripts/sync-repositories.sh
           --tfvars-json envs/dceoy/repos.tfvars.json
+          --moved-file modules/repos/moved.tf
       - name: Create pull request
         id: create-pull-request
         uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1  # v8.1.3

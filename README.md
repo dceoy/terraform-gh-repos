@@ -159,7 +159,7 @@ Declare existing repositories in the environment file:
 }
 ```
 
-The map key is the stable Terraform identity. `name` defaults to the key and may change without changing the Terraform resource address.
+The map key tracks the current GitHub repository name. The synchronizer matches repositories by immutable `github_id`; when a repository is renamed, it updates the map key and adds Terraform `moved` blocks for all managed resources to preserve their state addresses. The optional `name` override remains supported for legacy or manual inventories but is removed by synchronization.
 
 Optional synchronization metadata includes:
 
@@ -176,7 +176,7 @@ Managed resources use Terraform 1.16 `lifecycle { destroy = false }`; retiring a
 
 ## Inventory synchronization
 
-`.github/workflows/sync-repositories.yml` synchronizes `envs/dceoy/repos.tfvars.json` daily and on manual dispatch. It reconciles repository additions, renames, archival/reactivation, and managed ruleset IDs through a pull request.
+`.github/workflows/sync-repositories.yml` synchronizes `envs/dceoy/repos.tfvars.json` daily and on manual dispatch. It reconciles repository additions, renames, archival/reactivation, and managed ruleset IDs through a pull request. Renames also update `modules/repos/moved.tf` with state migrations; review the HCP Terraform plan to ensure resources are moved rather than recreated. Historical move sources are reserved and must not be reused as inventory keys while their migration blocks remain.
 
 Configure:
 

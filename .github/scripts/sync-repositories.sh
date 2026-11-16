@@ -4,13 +4,14 @@ set -euo pipefail
 
 usage() {
   cat << 'EOF'
-Usage: sync-repositories.sh --tfvars-json PATH [--repositories-json PATH] [--rulesets-json PATH]
+Usage: sync-repositories.sh --tfvars-json PATH [--repositories-json PATH] [--rulesets-json PATH] [--moved-file PATH]
 EOF
 }
 
 tfvars_json=''
 repositories_json=''
 rulesets_json=''
+moved_file=''
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --tfvars-json)
@@ -23,6 +24,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --rulesets-json)
       rulesets_json="$2"
+      shift 2
+      ;;
+    --moved-file)
+      moved_file="$2"
       shift 2
       ;;
     *)
@@ -42,10 +47,11 @@ owner="$(jq -r '.github_owner' "$tfvars_json")"
 
 result_file="$(mktemp)"
 inventory_file="$(mktemp)"
+moved_tmp="$(mktemp)"
 api_file=''
 rulesets_file=''
 cleanup() {
-  rm -f "$result_file" "$inventory_file"
+  rm -f "$result_file" "$inventory_file" "$moved_tmp"
   [[ -z "$api_file" ]] || rm -f "$api_file"
   [[ -z "$rulesets_file" ]] || rm -f "$rulesets_file"
 }
@@ -140,7 +146,7 @@ jq -n \
   | INDEX($owned[]; (.id | tostring)) as $by_id
   | INDEX($owned[]; .name) as $by_name
   | (reduce ($inventory.repositories | to_entries[]) as $item (
-      {entries: {}, tracked: {}, renames: [], archives: [], reactivations: [], additions: []};
+      {entries: {}, tracked: {}, moves: [], renames: [], archives: [], reactivations: [], additions: []};
       ($item.key) as $key
       | ($item.value) as $entry
       | if ($key | test("^[A-Za-z0-9._-]+$") | not) then
@@ -180,21 +186,26 @@ jq -n \
                 observed_visibility: ($repo.visibility // "public")
               }) as $next
               | sync_ruleset($id; $next) as $next
-              | ($next
-                  | if $repo.name == $key then del(.name)
-                    else .name = $repo.name
-                    end) as $next
+              | ($next | del(.name)) as $next
+              | if ($repo.name | test("^[A-Za-z0-9._-]+$") | not) then
+                  fail("Repository name cannot be rendered safely in Terraform state addresses: \($repo.name)")
+                elif $repo.name != $key and ($inventory.repositories | has($repo.name)) then
+                  fail("Cannot rename \($key): target key \($repo.name) is already reserved")
+                else . end
+              | if $repo.name != $key then
+                  .moves += [{from: $key, to: $repo.name}]
+                else . end
               | if $repo.archived == true then
-                  .entries[$key] = ($next + {retired: true})
+                  .entries[$repo.name] = ($next + {retired: true})
                   | if ($entry.retired // false) then .
                     else .archives += [$old_name]
                     end
                 else
-                  .entries[$key] = ($next | del(.retired))
+                  .entries[$repo.name] = ($next | del(.retired))
                   | if $entry.retired // false then
                       .reactivations += [$repo.name]
-                    elif $old_name != $repo.name then
-                      .renames += ["\($old_name) -> \($repo.name)"]
+                    elif $key != $repo.name or $old_name != $repo.name then
+                      .renames += ["\($key) -> \($repo.name)"]
                     else . end
                 end
             end
@@ -207,7 +218,9 @@ jq -n \
     ) as $repo (
       $state;
       ([.entries | to_entries[] | repo_name(.key; .value)] | index($repo.name)) as $name_collision
-      | if (.entries | has($repo.name)) or $name_collision != null then
+      | if ($repo.name | test("^[A-Za-z0-9._-]+$") | not) then
+          fail("Repository name cannot be rendered safely in Terraform state addresses: \($repo.name)")
+        elif (.entries | has($repo.name)) or $name_collision != null then
           fail("Cannot add \($repo.name): its name or stable Terraform key is reserved by an existing inventory entry")
         else
           ($repo.id | tostring) as $id
@@ -242,8 +255,68 @@ jq -n \
   | .inventory = ($inventory + {repositories: .entries})
 ' > "$result_file"
 
+move_count="$(jq -r '.moves | length' "$result_file")"
+if (( move_count > 0 )); then
+  [[ -n "$moved_file" ]] || {
+    echo '--moved-file is required when repository keys change.' >&2
+    exit 1
+  }
+  if [[ -f "$moved_file" ]]; then
+    while IFS=
+
+join_or_none() {
+  local filter=$1
+  jq -r "$filter | if length == 0 then \"none\" else join(\", \") end" "$result_file"
+}
+
+printf 'Added: %s\n' "$(join_or_none '.additions')"
+printf 'Renamed: %s\n' "$(join_or_none '.renames')"
+printf 'Archived: %s\n' "$(join_or_none '.archives')"
+printf 'Reactivated: %s\n' "$(join_or_none '.reactivations')"
+\t' read -r from to; do
+      if grep -Fq "from = github_repository.repo[\"$from\"]" "$moved_file"; then
+        echo "Existing Terraform move already uses source key: $from" >&2
+        exit 1
+      fi
+      if grep -Fq "from = github_repository.repo[\"$to\"]" "$moved_file"; then
+        echo "Cannot reuse a previous Terraform move source as destination: $to" >&2
+        exit 1
+      fi
+    done < <(jq -r '.moves[] | [.from, .to] | @tsv' "$result_file")
+  fi
+fi
+
+if [[ -n "$moved_file" && -f "$moved_file" ]]; then
+  while IFS= read -r added; do
+    if grep -Fq "from = github_repository.repo[\"$added\"]" "$moved_file"; then
+      echo "Cannot reuse a previous Terraform move source as a new repository key: $added" >&2
+      exit 1
+    fi
+  done < <(jq -r '.additions[]' "$result_file")
+fi
+
+if (( move_count > 0 )); then
+  if [[ -f "$moved_file" ]]; then
+    cat "$moved_file" > "$moved_tmp"
+  fi
+  jq -r '
+    .moves | sort_by(.from, .to) | .[] as $move
+    | [
+        "github_repository.repo",
+        "github_repository_vulnerability_alerts.alerts",
+        "github_repository_dependabot_security_updates.dependabot",
+        "github_workflow_repository_permissions.actions",
+        "github_repository_ruleset.branch"
+      ][]
+    | "moved {\\n  from = \\(.)[\\($move.from | tojson)]\\n  to   = \\(.)[\\($move.to | tojson)]\\n}\\n"
+  ' "$result_file" >> "$moved_tmp"
+fi
+
 jq '.inventory' "$result_file" > "$inventory_file"
 mv "$inventory_file" "$tfvars_json"
+if (( move_count > 0 )); then
+  mv "$moved_tmp" "$moved_file"
+fi
 
 join_or_none() {
   local filter=$1
