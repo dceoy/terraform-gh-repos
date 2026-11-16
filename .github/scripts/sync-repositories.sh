@@ -256,7 +256,7 @@ jq -n \
 ' > "$result_file"
 
 move_count="$(jq -r '.moves | length' "$result_file")"
-if (( move_count > 0 )); then
+if ((move_count > 0)); then
   [[ -n "$moved_file" ]] || {
     echo '--moved-file is required when repository keys change.' >&2
     exit 1
@@ -284,7 +284,7 @@ if [[ -n "$moved_file" && -f "$moved_file" ]]; then
   done < <(jq -r '.additions[]' "$result_file")
 fi
 
-if (( move_count > 0 )); then
+if ((move_count > 0)); then
   if [[ -f "$moved_file" ]]; then
     cat "$moved_file" > "$moved_tmp"
   fi
@@ -303,7 +303,7 @@ fi
 
 jq '.inventory' "$result_file" > "$inventory_file"
 mv "$inventory_file" "$tfvars_json"
-if (( move_count > 0 )); then
+if ((move_count > 0)); then
   mv "$moved_tmp" "$moved_file"
 fi
 
