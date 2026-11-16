@@ -13,7 +13,6 @@ envs/
 └── dceoy/
     ├── .terraform.lock.hcl
     ├── env.tf
-    ├── moved.tf
     └── repos.tfvars.json
 modules/
 ├── org/   # Independent organization-governance root
@@ -26,7 +25,7 @@ modules/
     └── version.tf
 ```
 
-`envs/dceoy` is the HCP Terraform **root module** for repository management. Its `env.tf` declares the provider, inputs, outputs, and `module "repos"` call into reusable `modules/repos`. The separate `moved.tf` contains environment-specific Terraform state migrations and remains separate so inventory synchronization can append moves without editing the root configuration. Provider authentication is configured only in the environment root; the child module exposes no unused GitHub App authentication inputs. The organization-governance root remains `modules/org` in a separate Terraform workspace.
+`envs/dceoy` is the HCP Terraform **root module** for repository management. Its `env.tf` declares the provider, inputs, outputs, and `module "repos"` call into reusable `modules/repos`. The inventory synchronizer creates `envs/dceoy/moved.tf` when a repository rename needs a temporary environment-specific state migration; it does not modify the reusable module. Provider authentication is configured only in the environment root; the child module exposes no unused GitHub App authentication inputs. The organization-governance root remains `modules/org` in a separate Terraform workspace.
 
 ## HCP Terraform
 
@@ -48,7 +47,7 @@ TF_CLI_ARGS_apply=-var-file="repos.tfvars.json"
 
 The repository workspace's run triggers must include `envs/dceoy/**`, `modules/repos/**`, and `envs/dceoy/repos.tfvars.json`. Store the GitHub App ID, installation ID, and PEM key as HCP Terraform variables; the provider is configured by the environment root, not the shared module.
 
-**Coordinated migration required:** PR #57's `claude-agent-api → casapi` and `forex-ai-lab → ai-lab` migrations must be successfully applied **before** removing their historical moved blocks. Back up the workspace state, pause automatic applies, and update the **existing** HCP Terraform workspace's working directory from `modules/repos` to `envs/dceoy`. Do not create a replacement workspace or reset the existing state. With this PR's root module, Terraform moves all existing root resource addresses to `module.repos.*` via `envs/dceoy/moved.tf` (including repository, alerts, Dependabot, Actions permissions, rulesets, and repository data sources). Review the plan and verify **zero managed-resource creates, deletes, or replacements** attributable to the refactor before applying. Keep the new root migration blocks until that apply succeeds. A subsequent cleanup PR may remove them after verifying no workspace still needs the migration.
+**State migration prerequisite:** Before removing historical root-to-`module.repos.*` move declarations, apply the original migration in the existing HCP Terraform workspace, preserving the same remote State. If a workspace still has unmigrated root addresses, restore the necessary `moved` blocks before planning or applying this cleanup. Validate that the workspace uses `envs/dceoy`, loads `repos.tfvars.json`, and the Terraform plan contains no unexpected create, destroy, or replace operations.
 
 **Important:** Merely changing the HCP working directory without deploying the new root configuration is unsafe. Coordinate the workspace setting with the merge and first plan/apply, and do not allow a run using an incompatible working directory. Validate the environment variables and relative tfvars path on the first run.
 
@@ -178,7 +177,7 @@ Managed resources use Terraform 1.16 `lifecycle { destroy = false }`; retiring a
 
 ## Inventory synchronization
 
-`.github/workflows/sync-repositories.yml` synchronizes `envs/dceoy/repos.tfvars.json` daily and on manual dispatch. It reconciles repository additions, renames, archival/reactivation, and managed ruleset IDs through a pull request. Renames generate `module.repos.*` state migration definitions in `envs/dceoy/moved.tf`, never inside the reusable child module. The existing root-to-child moves in that file are also temporary; remove any applied migration blocks only after all affected Terraform states have advanced. Review every HCP Terraform plan for unexpected resource destruction or replacement. Historical move sources are reserved while their migration blocks remain.
+`.github/workflows/sync-repositories.yml` synchronizes `envs/dceoy/repos.tfvars.json` daily and on manual dispatch. It reconciles repository additions, renames, archival/reactivation, and managed ruleset IDs through a pull request. Renames generate `module.repos.*` state migration definitions in `envs/dceoy/moved.tf`, never inside the reusable child module. Generate the file only for pending renames, and remove its migration blocks only after the relevant workspace state has advanced. Review every HCP Terraform plan for unexpected resource destruction or replacement. Historical move sources are reserved while their migration blocks remain.
 
 Configure:
 
