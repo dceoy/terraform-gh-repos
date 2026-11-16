@@ -9,55 +9,54 @@ Repository creation and destructive retirement are intentionally out of scope.
 ## Layout
 
 ```text
+envs/
+└── dceoy/
+    ├── repos.tfvars.json
+    └── repos/
+        ├── .terraform.lock.hcl
+        ├── main.tf
+        ├── moved.tf
+        ├── outputs.tf
+        ├── provider.tf
+        ├── variables.tf
+        └── version.tf
 modules/
-├── org/
-│   ├── .terraform.lock.hcl
-│   ├── imports.tf
-│   ├── locals.tf
-│   ├── main.tf
-│   ├── outputs.tf
-│   ├── provider.tf
-│   ├── variables.tf
-│   └── version.tf
-└── repos/
-    ├── .terraform.lock.hcl
-    ├── imports.tf
-    ├── locals.tf
-    ├── main.tf
-    ├── outputs.tf
-    ├── provider.tf
-    ├── variables.tf
-    └── version.tf
+├── org/   # Independent organization-governance root
+└── repos/ # Reusable repository module (no provider or environment-specific state moves)
 ```
 
-`modules/repos` and `modules/org` are independent Terraform root modules. Repository inventory and per-repository overrides live in `repos.tfvars.json`; organization settings and Actions/ruleset policy live in `org.tfvars.json`. The modules do not share Terraform state.
+`envs/dceoy/repos` is the HCP Terraform **root module** for repository management. It invokes reusable `modules/repos`, configures GitHub authentication, and owns environment-specific Terraform state moves. The organization-governance root remains `modules/org` in a separate Terraform workspace.
 
 ## HCP Terraform
 
-Create a VCS-driven workspace with:
+For the repository-management VCS-driven workspace, use:
 
 - VCS repository: `dceoy/terraform-gh-repos`
-- Working directory: `modules/repos`
+- Working directory: `envs/dceoy/repos`
 - Execution mode: Remote
 - Terraform version: `>= 1.16.0`
 
-Load the environment file for plans and applies:
+Load the existing inventory relative to the new working directory:
 
 ```text
-TF_CLI_ARGS_plan=-var-file="../../envs/dceoy/repos.tfvars.json"
-TF_CLI_ARGS_apply=-var-file="../../envs/dceoy/repos.tfvars.json"
+TF_CLI_ARGS_plan=-var-file="../repos.tfvars.json"
+TF_CLI_ARGS_apply=-var-file="../repos.tfvars.json"
 ```
 
-Configure automatic run triggering for changes under `modules/repos/**` and the selected tfvars file.
+The repository workspace's run triggers must include `envs/dceoy/repos/**`, `modules/repos/**`, and `envs/dceoy/repos.tfvars.json`. Store the GitHub App ID, installation ID, and PEM key as HCP Terraform variables; the provider is configured by the environment root, not the shared module.
 
-Create a second VCS-driven workspace for organization governance:
+**Coordinated migration required:** PR #57's `claude-agent-api → casapi` and `forex-ai-lab → ai-lab` migrations must be successfully applied **before** removing their historical moved blocks. Back up the workspace state, pause automatic applies, and update the **existing** HCP Terraform workspace's working directory from `modules/repos` to `envs/dceoy/repos`. Do not create a replacement workspace or reset the existing state. With this PR's root module, Terraform moves all existing root resource addresses to `module.repos.*` via `envs/dceoy/repos/moved.tf` (including repository, alerts, Dependabot, Actions permissions, rulesets, and repository data sources). Review the plan and verify **zero managed-resource creates, deletes, or replacements** attributable to the refactor before applying. Keep the new root migration blocks until that apply succeeds. A subsequent cleanup PR may remove them after verifying no workspace still needs the migration.
+
+**Important:** Merely changing the HCP working directory without deploying the new root configuration is unsafe. Coordinate the workspace setting with the merge and first plan/apply, and do not allow a run using an incompatible working directory. Validate the environment variables and relative tfvars path on the first run.
+
+The organization-governance workspace remains unchanged:
 
 - VCS repository: `dceoy/terraform-gh-repos`
 - Working directory: `modules/org`
 - Execution mode: Remote
 - Terraform version: `>= 1.16.0`
 
-For a VCS-driven workspace, prefer HCP Terraform workspace or variable-set values for `github_owner`, sensitive `github_owner_token`, `organization_settings`, `actions`, and the optional `default_branch_ruleset`. Do not set the file-based `TF_CLI_ARGS_*` variables below when those Terraform variables are configured in HCP.
+For a VCS-driven organization workspace, prefer HCP Terraform workspace or variable-set values for `github_owner`, sensitive `github_owner_token`, `organization_settings`, `actions`, and the optional `default_branch_ruleset`. Do not set the file-based `TF_CLI_ARGS_*` variables below when those Terraform variables are configured in HCP.
 
 Alternatively, load the organization environment file for plans and applies:
 
@@ -66,7 +65,7 @@ TF_CLI_ARGS_plan=-var-file="../../envs/<organization>/org.tfvars.json"
 TF_CLI_ARGS_apply=-var-file="../../envs/<organization>/org.tfvars.json"
 ```
 
-Because `.gitignore` excludes `*.tfvars.json`, an HCP VCS workspace can use the file-based option only when the file is deliberately reviewed and force-added, for example with `git add -f envs/<organization>/org.tfvars.json`. Keep App credentials and the organization-owner user token in sensitive HCP variables and do not force-add private keys or tokens. Keep the `modules/org` and `modules/repos` workspaces and state separate. Configure the organization workspace to trigger on `modules/org/**` and, when tracked, its selected environment file.
+Because `.gitignore` excludes `*.tfvars.json`, an HCP VCS workspace can use a file-based option only when the file is deliberately reviewed and force-added, for example with `git add -f envs/<organization>/org.tfvars.json`. Keep App credentials and the organization-owner user token in sensitive HCP variables and do not force-add private keys or tokens. Keep the organization and repositories workspaces and states separate. Configure the organization workspace to trigger on `modules/org/**` and, when tracked, its selected environment file.
 
 ### Authentication and GitHub App permissions
 
@@ -75,7 +74,7 @@ Create and install a private GitHub App for the organization Terraform manages. 
 1. Grant the App organization **Administration: Read and write** for Actions policy and rulesets.
 2. Grant the App repository **Metadata: Read-only** when `actions.enabled_repositories` is `selected`, so configured repository IDs can be resolved.
 3. Install the App on the organization and on any repositories required by a selected Actions policy.
-4. Record the App ID and installation ID, generate a private key, and set `github_app_id`, `github_app_installation_id`, and sensitive `github_app_pem_file` as Terraform variables in the `modules/org` HCP Terraform workspace. Ambient `GITHUB_APP_*` variables cannot replace these inputs.
+4. Record the App ID and installation ID, generate a private key, and set `github_app_id`, `github_app_installation_id`, and sensitive `github_app_pem_file` as Terraform variables in the organization HCP Terraform workspace. Ambient `GITHUB_APP_*` variables cannot replace these inputs.
 5. Set sensitive `github_owner_token` to a user token belonging to an owner of the managed organization. A fine-grained personal access token or GitHub App user access token needs organization **Administration: Read and write** for the update path; a personal access token (classic) needs `admin:org`. This token is used only by the aliased provider for `github_organization_settings` and its private organization read path.
 
 `modules/org` does not require organization **Members** permission or repository **Administration** permission because it does not manage members, teams, memberships, or team-to-repository access. If the same App is also used by `modules/repos`, grant the separate repository permissions required by that root.
@@ -131,7 +130,7 @@ The locked GitHub provider 6.13.0 does not reliably serialize `sha_pinning_requi
 
 ### Organization and repository ruleset ownership
 
-`modules/repos` owns repository-level `default-branch-protection` rulesets by default. Repository ruleset policy is configured through the `default_branch_ruleset` variable. When the organization workspace owns the shared policy, set the `modules/repos` workspace variable `manage_default_branch_repository_rulesets` to `false`. Do not manage the same protection policy at both scopes.
+`modules/repos` owns repository-level `default-branch-protection` rulesets by default. Repository ruleset policy is configured through the `default_branch_ruleset` variable. When the organization workspace owns the shared policy, set the repository workspace variable `manage_default_branch_repository_rulesets` to `false`. Do not manage the same protection policy at both scopes.
 
 Transfer ownership in stages:
 
@@ -159,7 +158,7 @@ Declare existing repositories in the environment file:
 }
 ```
 
-The map key tracks the current GitHub repository name. The synchronizer matches repositories by immutable `github_id`; when a repository is renamed, it updates the map key and adds Terraform `moved` blocks for all managed resources to preserve their state addresses. The optional `name` override remains supported for legacy or manual inventories but is removed by synchronization.
+The map key tracks the current GitHub repository name. The synchronizer matches repositories by immutable `github_id`; when a repository is renamed, it updates the map key and adds environment-root Terraform `moved` blocks under `envs/dceoy/repos/moved.tf` to preserve the child module's state addresses. The optional `name` override remains supported for legacy or manual inventories but is removed by synchronization.
 
 Optional synchronization metadata includes:
 
@@ -176,7 +175,7 @@ Managed resources use Terraform 1.16 `lifecycle { destroy = false }`; retiring a
 
 ## Inventory synchronization
 
-`.github/workflows/sync-repositories.yml` synchronizes `envs/dceoy/repos.tfvars.json` daily and on manual dispatch. It reconciles repository additions, renames, archival/reactivation, and managed ruleset IDs through a pull request. Renames also generate `modules/repos/moved.tf` with state migrations; review the HCP Terraform plan to ensure resources are moved rather than recreated. These repository-specific migration blocks are temporary: after every affected HCP Terraform workspace has successfully applied the migration, remove `moved.tf` in a follow-up pull request to keep the module reusable. Do not remove migration blocks before their corresponding state moves have been applied. Historical move sources are reserved and must not be reused as inventory keys while their migration blocks remain.
+`.github/workflows/sync-repositories.yml` synchronizes `envs/dceoy/repos.tfvars.json` daily and on manual dispatch. It reconciles repository additions, renames, archival/reactivation, and managed ruleset IDs through a pull request. Renames generate `module.repos.*` state migration definitions in `envs/dceoy/repos/moved.tf`, never inside the reusable child module. The existing root-to-child moves in that file are also temporary; remove any applied migration blocks only after all affected Terraform states have advanced. Review every HCP Terraform plan for unexpected resource destruction or replacement. Historical move sources are reserved while their migration blocks remain.
 
 Configure:
 
