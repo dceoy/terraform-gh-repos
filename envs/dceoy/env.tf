@@ -53,7 +53,11 @@ variable "github_app_pem_file" {
 variable "repositories" {
   description = "Repository inventory passed to the reusable repositories module."
   type        = any
-  default     = {}
+  nullable    = false
+  validation {
+    condition     = length(var.repositories) > 0
+    error_message = "Repository inventory must not be empty; load repos.tfvars.json."
+  }
 }
 
 variable "manage_default_branch_repository_rulesets" {

@@ -451,3 +451,16 @@ HCL
   run grep -F 'to   = module.repos.github_repository.repo["beta"]' "$moved"
   [ "$status" -eq 0 ]
 }
+
+@test "requires a nonempty repository inventory in the HCP environment root" {
+  root="${BATS_TEST_DIRNAME}/../../../envs/dceoy/env.tf"
+  run awk '
+    /^variable "repositories" \{/ { in_repositories = 1 }
+    in_repositories && /^}/ { exit }
+    in_repositories { print }
+  ' "$root"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'nullable    = false'* ]]
+  [[ "$output" == *'length(var.repositories) > 0'* ]]
+  [[ "$output" != *'default'* ]]
+}

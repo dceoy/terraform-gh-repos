@@ -31,6 +31,8 @@ For the repository-management VCS-driven workspace, use:
 - Execution mode: Remote
 - Terraform version: `>= 1.16.0`
 
+The `repositories` input is required and must be nonempty, so a missing or empty inventory fails validation instead of silently forgetting managed resources.
+
 Load the existing inventory relative to the new working directory:
 
 ```text
