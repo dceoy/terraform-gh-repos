@@ -262,18 +262,7 @@ if (( move_count > 0 )); then
     exit 1
   }
   if [[ -f "$moved_file" ]]; then
-    while IFS=
-
-join_or_none() {
-  local filter=$1
-  jq -r "$filter | if length == 0 then \"none\" else join(\", \") end" "$result_file"
-}
-
-printf 'Added: %s\n' "$(join_or_none '.additions')"
-printf 'Renamed: %s\n' "$(join_or_none '.renames')"
-printf 'Archived: %s\n' "$(join_or_none '.archives')"
-printf 'Reactivated: %s\n' "$(join_or_none '.reactivations')"
-\t' read -r from to; do
+    while IFS=$'\t' read -r from to; do
       if grep -Fq "from = github_repository.repo[\"$from\"]" "$moved_file"; then
         echo "Existing Terraform move already uses source key: $from" >&2
         exit 1
