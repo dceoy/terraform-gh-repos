@@ -17,7 +17,13 @@ envs/
     └── repos.tfvars.json
 modules/
 ├── org/   # Independent organization-governance root
-└── repos/ # Reusable repository module (no provider or environment-specific state moves)
+└── repos/ # Reusable repository module
+    ├── imports.tf
+    ├── locals.tf
+    ├── main.tf
+    ├── outputs.tf
+    ├── variables.tf
+    └── version.tf
 ```
 
 `envs/dceoy` is the HCP Terraform **root module** for repository management. Its `env.tf` declares the provider, inputs, outputs, and `module "repos"` call into reusable `modules/repos`. The separate `moved.tf` contains environment-specific Terraform state migrations and remains separate so inventory synchronization can append moves without editing the root configuration. Provider authentication is configured only in the environment root; the child module exposes no unused GitHub App authentication inputs. The organization-governance root remains `modules/org` in a separate Terraform workspace.
