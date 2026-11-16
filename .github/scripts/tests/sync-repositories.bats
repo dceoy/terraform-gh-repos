@@ -369,3 +369,55 @@ JSON
   [ "$status" -ne 0 ]
   [[ "$output" == *"Cannot reuse a previous Terraform move source"* ]]
 }
+
+@test "preserves inventory when Terraform moved-file parent directory is missing" {
+  cat > "$inventory" << 'JSON'
+{
+  "github_owner": "owner",
+  "repositories": {"alpha": {"github_id": 1}}
+}
+JSON
+  cat > "$api" << 'JSON'
+[
+  {"id": 1, "name": "beta", "visibility": "public", "archived": false, "owner": {"login": "owner"}}
+]
+JSON
+  original="$(cat "$inventory")"
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api" \
+    --moved-file "${BATS_TEST_TMPDIR}/missing/moved.tf"
+  [ "$status" -ne 0 ]
+  [ "$(cat "$inventory")" = "$original" ]
+  [ ! -e "${BATS_TEST_TMPDIR}/missing/moved.tf" ]
+}
+
+@test "restores existing Terraform moved file when inventory publication fails" {
+  cat > "$inventory" << 'JSON'
+{
+  "github_owner": "owner",
+  "repositories": {"alpha": {"github_id": 1}}
+}
+JSON
+  cat > "$api" << 'JSON'
+[
+  {"id": 1, "name": "beta", "visibility": "public", "archived": false, "owner": {"login": "owner"}}
+]
+JSON
+  printf '%s\n' '# Existing Terraform moves' > "$moved"
+  inventory_before="$(cat "$inventory")"
+  moved_before="$(cat "$moved")"
+  mkdir -p "${BATS_TEST_TMPDIR}/bin"
+  cat > "${BATS_TEST_TMPDIR}/bin/mv" << 'EOF'
+#!/usr/bin/env bash
+if [[ "$2" == "$FAIL_INVENTORY_PATH" ]]; then
+  exit 1
+fi
+exec /usr/bin/mv "$@"
+EOF
+  chmod +x "${BATS_TEST_TMPDIR}/bin/mv"
+
+  run env PATH="${BATS_TEST_TMPDIR}/bin:${PATH}" FAIL_INVENTORY_PATH="$inventory" \
+    bash "$script" --tfvars-json "$inventory" --repositories-json "$api" --moved-file "$moved"
+  [ "$status" -ne 0 ]
+  [ "$(cat "$inventory")" = "$inventory_before" ]
+  [ "$(cat "$moved")" = "$moved_before" ]
+}

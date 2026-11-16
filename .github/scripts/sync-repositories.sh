@@ -46,12 +46,24 @@ jq -e 'type == "object" and (.github_owner | type == "string" and length > 0) an
 owner="$(jq -r '.github_owner' "$tfvars_json")"
 
 result_file="$(mktemp)"
-inventory_file="$(mktemp)"
-moved_tmp="$(mktemp)"
+inventory_file="$(mktemp "$(dirname "$tfvars_json")/.repos.XXXXXX")"
+moved_tmp=''
+moved_backup=''
+moved_published=false
+inventory_published=false
 api_file=''
 rulesets_file=''
 cleanup() {
-  rm -f "$result_file" "$inventory_file" "$moved_tmp"
+  if [[ "$moved_published" == true && "$inventory_published" == false ]]; then
+    if [[ -n "$moved_backup" ]]; then
+      mv -f -- "$moved_backup" "$moved_file" || echo 'Failed to restore Terraform moved file.' >&2
+    else
+      rm -f -- "$moved_file" || echo 'Failed to remove incomplete Terraform moved file.' >&2
+    fi
+  fi
+  rm -f "$result_file" "$inventory_file"
+  [[ -z "$moved_tmp" ]] || rm -f "$moved_tmp"
+  [[ -z "$moved_backup" ]] || rm -f "$moved_backup"
   [[ -z "$api_file" ]] || rm -f "$api_file"
   [[ -z "$rulesets_file" ]] || rm -f "$rulesets_file"
 }
@@ -285,6 +297,11 @@ if [[ -n "$moved_file" && -f "$moved_file" ]]; then
 fi
 
 if ((move_count > 0)); then
+  if [[ -L "$moved_file" || ( -e "$moved_file" && ! -f "$moved_file" ) ]]; then
+    echo "Terraform moved-file destination must be a regular file: $moved_file" >&2
+    exit 1
+  fi
+  moved_tmp="$(mktemp "$(dirname "$moved_file")/.moved.XXXXXX")"
   if [[ -f "$moved_file" ]]; then
     cat "$moved_file" > "$moved_tmp"
   fi
@@ -302,10 +319,16 @@ if ((move_count > 0)); then
 fi
 
 jq '.inventory' "$result_file" > "$inventory_file"
-mv "$inventory_file" "$tfvars_json"
 if ((move_count > 0)); then
-  mv "$moved_tmp" "$moved_file"
+  if [[ -f "$moved_file" ]]; then
+    moved_backup="$(mktemp "$(dirname "$moved_file")/.moved-backup.XXXXXX")"
+    cp -p -- "$moved_file" "$moved_backup"
+  fi
+  mv -- "$moved_tmp" "$moved_file"
+  moved_published=true
 fi
+mv -- "$inventory_file" "$tfvars_json"
+inventory_published=true
 
 join_or_none() {
   local filter=$1
