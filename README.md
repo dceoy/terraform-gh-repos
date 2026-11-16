@@ -176,7 +176,7 @@ Managed resources use Terraform 1.16 `lifecycle { destroy = false }`; retiring a
 
 ## Inventory synchronization
 
-`.github/workflows/sync-repositories.yml` synchronizes `envs/dceoy/repos.tfvars.json` daily and on manual dispatch. It reconciles repository additions, renames, archival/reactivation, and managed ruleset IDs through a pull request. Renames also update `modules/repos/moved.tf` with state migrations; review the HCP Terraform plan to ensure resources are moved rather than recreated. Historical move sources are reserved and must not be reused as inventory keys while their migration blocks remain.
+`.github/workflows/sync-repositories.yml` synchronizes `envs/dceoy/repos.tfvars.json` daily and on manual dispatch. It reconciles repository additions, renames, archival/reactivation, and managed ruleset IDs through a pull request. Renames also generate `modules/repos/moved.tf` with state migrations; review the HCP Terraform plan to ensure resources are moved rather than recreated. These repository-specific migration blocks are temporary: after every affected HCP Terraform workspace has successfully applied the migration, remove `moved.tf` in a follow-up pull request to keep the module reusable. Do not remove migration blocks before their corresponding state moves have been applied. Historical move sources are reserved and must not be reused as inventory keys while their migration blocks remain.
 
 Configure:
 
