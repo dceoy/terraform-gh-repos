@@ -20,7 +20,7 @@ modules/
 └── repos/ # Reusable repository module (no provider or environment-specific state moves)
 ```
 
-`envs/dceoy` is the HCP Terraform **root module** for repository management. Its `env.tf` declares the provider, inputs, outputs, and `module "repos"` call into reusable `modules/repos`. The separate `moved.tf` contains environment-specific Terraform state migrations and remains separate so inventory synchronization can append moves without editing the root configuration. For backward-compatible module inputs, `modules/repos/variables.tf` retains the previous GitHub App variable declarations, but provider configuration is intentionally owned by each calling root; those compatibility variables do not configure the child module's provider. The organization-governance root remains `modules/org` in a separate Terraform workspace.
+`envs/dceoy` is the HCP Terraform **root module** for repository management. Its `env.tf` declares the provider, inputs, outputs, and `module "repos"` call into reusable `modules/repos`. The separate `moved.tf` contains environment-specific Terraform state migrations and remains separate so inventory synchronization can append moves without editing the root configuration. Provider authentication is configured only in the environment root; the child module exposes no unused GitHub App authentication inputs. The organization-governance root remains `modules/org` in a separate Terraform workspace.
 
 ## HCP Terraform
 
