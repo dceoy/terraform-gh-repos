@@ -275,11 +275,11 @@ if ((move_count > 0)); then
   }
   if [[ -f "$moved_file" ]]; then
     while IFS=$'\t' read -r from to; do
-      if grep -Fq "from = github_repository.repo[\"$from\"]" "$moved_file"; then
+      if grep -Fq "from = module.repos.github_repository.repo[\"$from\"]" "$moved_file"; then
         echo "Existing Terraform move already uses source key: $from" >&2
         exit 1
       fi
-      if grep -Fq "from = github_repository.repo[\"$to\"]" "$moved_file"; then
+      if grep -Fq "from = module.repos.github_repository.repo[\"$to\"]" "$moved_file"; then
         echo "Cannot reuse a previous Terraform move source as destination: $to" >&2
         exit 1
       fi
@@ -289,7 +289,7 @@ fi
 
 if [[ -n "$moved_file" && -f "$moved_file" ]]; then
   while IFS= read -r added; do
-    if grep -Fq "from = github_repository.repo[\"$added\"]" "$moved_file"; then
+    if grep -Fq "from = module.repos.github_repository.repo[\"$added\"]" "$moved_file"; then
       echo "Cannot reuse a previous Terraform move source as a new repository key: $added" >&2
       exit 1
     fi
@@ -308,11 +308,11 @@ if ((move_count > 0)); then
   jq -r '
     .moves | sort_by(.from, .to) | .[] as $move
     | [
-        "github_repository.repo",
-        "github_repository_vulnerability_alerts.alerts",
-        "github_repository_dependabot_security_updates.dependabot",
-        "github_workflow_repository_permissions.actions",
-        "github_repository_ruleset.branch"
+        "module.repos.github_repository.repo",
+        "module.repos.github_repository_vulnerability_alerts.alerts",
+        "module.repos.github_repository_dependabot_security_updates.dependabot",
+        "module.repos.github_workflow_repository_permissions.actions",
+        "module.repos.github_repository_ruleset.branch"
       ][]
     | "moved {\n  from = \(.)[\($move.from | tojson)]\n  to   = \(.)[\($move.to | tojson)]\n}\n"
   ' "$result_file" >> "$moved_tmp"

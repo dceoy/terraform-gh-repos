@@ -84,13 +84,13 @@ JSON
   [[ "$output" == *"Renamed: alpha -> renamed-alpha"* ]]
   run jq -e '.repositories["renamed-alpha"].github_id == 1 and .repositories["renamed-alpha"].has_issues == false and (.repositories | has("alpha") | not) and (.repositories["renamed-alpha"] | has("name") | not)' "$inventory"
   [ "$status" -eq 0 ]
-  run grep -F 'from = github_repository.repo["alpha"]' "$moved"
+  run grep -F 'from = module.repos.github_repository.repo["alpha"]' "$moved"
   [ "$status" -eq 0 ]
-  run grep -F 'to   = github_repository.repo["renamed-alpha"]' "$moved"
+  run grep -F 'to   = module.repos.github_repository.repo["renamed-alpha"]' "$moved"
   [ "$status" -eq 0 ]
-  run grep -F 'from = github_repository_ruleset.branch["alpha"]' "$moved"
+  run grep -F 'from = module.repos.github_repository_ruleset.branch["alpha"]' "$moved"
   [ "$status" -eq 0 ]
-  run grep -F 'to   = github_repository_ruleset.branch["renamed-alpha"]' "$moved"
+  run grep -F 'to   = module.repos.github_repository_ruleset.branch["renamed-alpha"]' "$moved"
   [ "$status" -eq 0 ]
 }
 
@@ -364,7 +364,7 @@ JSON
   {"id": 2, "name": "alpha", "visibility": "public", "archived": false, "owner": {"login": "owner"}}
 ]
 JSON
-  printf '%s\n' 'moved {' '  from = github_repository.repo["alpha"]' '  to   = github_repository.repo["beta"]' '}' > "$moved"
+  printf '%s\n' 'moved {' '  from = module.repos.github_repository.repo["alpha"]' '  to   = module.repos.github_repository.repo["beta"]' '}' > "$moved"
   run bash "$script" --tfvars-json "$inventory" --repositories-json "$api" --moved-file "$moved"
   [ "$status" -ne 0 ]
   [[ "$output" == *"Cannot reuse a previous Terraform move source"* ]]
@@ -422,4 +422,45 @@ EOF
   [ "$status" -ne 0 ]
   [ "$(cat "$inventory")" = "$inventory_before" ]
   [ "$(cat "$moved")" = "$moved_before" ]
+}
+
+@test "preserves root-module migration blocks when appending an environment rename" {
+  cat > "$inventory" << 'JSON'
+{
+  "github_owner": "owner",
+  "repositories": {"alpha": {"github_id": 1}}
+}
+JSON
+  cat > "$api" << 'JSON'
+[
+  {"id": 1, "name": "beta", "visibility": "public", "archived": false, "owner": {"login": "owner"}}
+]
+JSON
+  cat > "$moved" << 'HCL'
+moved {
+  from = github_repository.repo
+  to   = module.repos.github_repository.repo
+}
+HCL
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api" --moved-file "$moved"
+  [ "$status" -eq 0 ]
+  run grep -F 'from = github_repository.repo' "$moved"
+  [ "$status" -eq 0 ]
+  run grep -F 'from = module.repos.github_repository.repo["alpha"]' "$moved"
+  [ "$status" -eq 0 ]
+  run grep -F 'to   = module.repos.github_repository.repo["beta"]' "$moved"
+  [ "$status" -eq 0 ]
+}
+
+@test "requires a nonempty repository inventory in the HCP environment root" {
+  root="${BATS_TEST_DIRNAME}/../../../envs/dceoy/env.tf"
+  run awk '
+    /^variable "repositories" \{/ { in_repositories = 1 }
+    in_repositories && /^}/ { exit }
+    in_repositories { print }
+  ' "$root"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *'nullable    = false'* ]]
+  [[ "$output" == *'length(var.repositories) > 0'* ]]
+  [[ "$output" != *'default'* ]]
 }
