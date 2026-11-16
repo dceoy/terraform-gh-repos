@@ -5,6 +5,7 @@ setup() {
   inventory="${BATS_TEST_TMPDIR}/inventory.json"
   api="${BATS_TEST_TMPDIR}/repositories.json"
   rulesets="${BATS_TEST_TMPDIR}/rulesets.json"
+  moved="${BATS_TEST_TMPDIR}/moved.tf"
 }
 
 @test "adds a newly discovered repository" {
@@ -77,11 +78,19 @@ JSON
 ]
 JSON
 
-  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api"
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api" --moved-file "$moved"
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"Renamed: alpha -> renamed-alpha"* ]]
-  run jq -e '.repositories.alpha.name == "renamed-alpha" and .repositories.alpha.has_issues == false' "$inventory"
+  run jq -e '.repositories["renamed-alpha"].github_id == 1 and .repositories["renamed-alpha"].has_issues == false and (.repositories | has("alpha") | not) and (.repositories["renamed-alpha"] | has("name") | not)' "$inventory"
+  [ "$status" -eq 0 ]
+  run grep -F 'from = github_repository.repo["alpha"]' "$moved"
+  [ "$status" -eq 0 ]
+  run grep -F 'to   = github_repository.repo["renamed-alpha"]' "$moved"
+  [ "$status" -eq 0 ]
+  run grep -F 'from = github_repository_ruleset.branch["alpha"]' "$moved"
+  [ "$status" -eq 0 ]
+  run grep -F 'to   = github_repository_ruleset.branch["renamed-alpha"]' "$moved"
   [ "$status" -eq 0 ]
 }
 
@@ -138,11 +147,11 @@ JSON
   run bash "$script" \
     --tfvars-json "$inventory" \
     --repositories-json "$api" \
-    --rulesets-json "$rulesets"
+    --rulesets-json "$rulesets" --moved-file "$moved"
 
   [ "$status" -eq 0 ]
   [[ "$output" == *"Reactivated: renamed-alpha"* ]]
-  run jq -e '.repositories.alpha.retired == null and .repositories.alpha.name == "renamed-alpha" and .repositories.alpha.ruleset_id == 99 and .repositories.alpha.has_issues == false' "$inventory"
+  run jq -e '.repositories["renamed-alpha"].retired == null and .repositories["renamed-alpha"].ruleset_id == 99 and .repositories["renamed-alpha"].has_issues == false' "$inventory"
   [ "$status" -eq 0 ]
 }
 
@@ -249,7 +258,7 @@ JSON
   run bash "$script" --tfvars-json "$inventory" --repositories-json "$api"
 
   [ "$status" -ne 0 ]
-  [[ "$output" == *"Repository names must not reuse another stable Terraform key: beta -> alpha"* ]]
+  [[ "$output" == *"Cannot rename beta: target key alpha is already reserved"* ]]
 }
 
 @test "discovers repositories and repository rulesets with gh" {
@@ -284,4 +293,133 @@ EOF
   [[ "$output" == *"Added: alpha"* ]]
   run jq -e '.repositories.alpha.github_id == 1 and .repositories.alpha.ruleset_id == 99' "$inventory"
   [ "$status" -eq 0 ]
+}
+
+@test "migrates a legacy name override to the current repository key once" {
+  cat > "$inventory" << 'JSON'
+{
+  "github_owner": "owner",
+  "repositories": {
+    "old-name": {
+      "github_id": 1,
+      "name": "current-name",
+      "observed_visibility": "public",
+      "has_issues": false
+    }
+  }
+}
+JSON
+  cat > "$api" << 'JSON'
+[
+  {"id": 1, "name": "current-name", "visibility": "public", "archived": false, "owner": {"login": "owner"}}
+]
+JSON
+
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api" --moved-file "$moved"
+  [ "$status" -eq 0 ]
+  run jq -e '.repositories["current-name"].github_id == 1 and .repositories["current-name"].has_issues == false and (.repositories["current-name"] | has("name") | not) and (.repositories | has("old-name") | not)' "$inventory"
+  [ "$status" -eq 0 ]
+  run grep -c '^moved {$' "$moved"
+  [ "$status" -eq 0 ]
+  [ "$output" -eq 5 ]
+
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api" --moved-file "$moved"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"Renamed: none"* ]]
+  run grep -c '^moved {$' "$moved"
+  [ "$status" -eq 0 ]
+  [ "$output" -eq 5 ]
+}
+
+@test "rejects a rename without Terraform state migration output" {
+  cat > "$inventory" << 'JSON'
+{
+  "github_owner": "owner",
+  "repositories": {"alpha": {"github_id": 1}}
+}
+JSON
+  cat > "$api" << 'JSON'
+[
+  {"id": 1, "name": "beta", "visibility": "public", "archived": false, "owner": {"login": "owner"}}
+]
+JSON
+
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"--moved-file is required"* ]]
+  run jq -e '.repositories | has("alpha")' "$inventory"
+  [ "$status" -eq 0 ]
+}
+
+@test "rejects reusing a previous Terraform move source key" {
+  cat > "$inventory" << 'JSON'
+{
+  "github_owner": "owner",
+  "repositories": {"beta": {"github_id": 1}}
+}
+JSON
+  cat > "$api" << 'JSON'
+[
+  {"id": 1, "name": "beta", "visibility": "public", "archived": false, "owner": {"login": "owner"}},
+  {"id": 2, "name": "alpha", "visibility": "public", "archived": false, "owner": {"login": "owner"}}
+]
+JSON
+  printf '%s\n' 'moved {' '  from = github_repository.repo["alpha"]' '  to   = github_repository.repo["beta"]' '}' > "$moved"
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api" --moved-file "$moved"
+  [ "$status" -ne 0 ]
+  [[ "$output" == *"Cannot reuse a previous Terraform move source"* ]]
+}
+
+@test "preserves inventory when Terraform moved-file parent directory is missing" {
+  cat > "$inventory" << 'JSON'
+{
+  "github_owner": "owner",
+  "repositories": {"alpha": {"github_id": 1}}
+}
+JSON
+  cat > "$api" << 'JSON'
+[
+  {"id": 1, "name": "beta", "visibility": "public", "archived": false, "owner": {"login": "owner"}}
+]
+JSON
+  original="$(cat "$inventory")"
+  run bash "$script" --tfvars-json "$inventory" --repositories-json "$api" \
+    --moved-file "${BATS_TEST_TMPDIR}/missing/moved.tf"
+  [ "$status" -ne 0 ]
+  [ "$(cat "$inventory")" = "$original" ]
+  [ ! -e "${BATS_TEST_TMPDIR}/missing/moved.tf" ]
+}
+
+@test "restores existing Terraform moved file when inventory publication fails" {
+  cat > "$inventory" << 'JSON'
+{
+  "github_owner": "owner",
+  "repositories": {"alpha": {"github_id": 1}}
+}
+JSON
+  cat > "$api" << 'JSON'
+[
+  {"id": 1, "name": "beta", "visibility": "public", "archived": false, "owner": {"login": "owner"}}
+]
+JSON
+  printf '%s\n' '# Existing Terraform moves' > "$moved"
+  inventory_before="$(cat "$inventory")"
+  moved_before="$(cat "$moved")"
+  mkdir -p "${BATS_TEST_TMPDIR}/bin"
+  cat > "${BATS_TEST_TMPDIR}/bin/mv" << 'EOF'
+#!/usr/bin/env bash
+for argument in "$@"; do
+  if [[ "$argument" == "$FAIL_INVENTORY_PATH" ]]; then
+    exit 1
+  fi
+done
+exec /usr/bin/mv "$@"
+EOF
+  chmod +x "${BATS_TEST_TMPDIR}/bin/mv"
+
+  run env PATH="${BATS_TEST_TMPDIR}/bin:${PATH}" FAIL_INVENTORY_PATH="$inventory" \
+    bash "$script" --tfvars-json "$inventory" --repositories-json "$api" --moved-file "$moved"
+  [ "$status" -ne 0 ]
+  [ "$(cat "$inventory")" = "$inventory_before" ]
+  [ "$(cat "$moved")" = "$moved_before" ]
 }

@@ -87,7 +87,7 @@ variable "default_branch_ruleset" {
 }
 
 variable "repositories" {
-  description = "Repositories tracked by this Terraform configuration. Map keys are stable Terraform identities; retired entries are retained as tombstones but excluded from management."
+  description = "Repositories tracked by this Terraform configuration. Map keys follow current GitHub names; renames require moved blocks to preserve Terraform state. Retired entries remain tombstones outside active management."
   type = map(object({
     github_id                        = optional(number)
     ruleset_id                       = optional(number)
