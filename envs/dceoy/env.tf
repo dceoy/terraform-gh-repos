@@ -1,3 +1,13 @@
+terraform {
+  required_version = ">= 1.16.0"
+  required_providers {
+    github = {
+      source  = "integrations/github"
+      version = ">= 6.13.0"
+    }
+  }
+}
+
 variable "github_owner" {
   description = "GitHub account that owns the managed repositories."
   type        = string
@@ -56,4 +66,39 @@ variable "default_branch_ruleset" {
   description = "Default branch ruleset configuration forwarded to the module."
   type        = any
   default     = {}
+}
+
+provider "github" {
+  owner = var.github_owner
+  dynamic "app_auth" {
+    for_each = (
+      var.github_app_id != null
+      && var.github_app_installation_id != null
+      && var.github_app_pem_file != null
+    ) ? [1] : []
+    content {
+      id              = var.github_app_id
+      installation_id = var.github_app_installation_id
+      pem_file        = var.github_app_pem_file
+    }
+  }
+}
+
+module "repos" {
+  source = "../../modules/repos"
+
+  github_owner                              = var.github_owner
+  repositories                              = var.repositories
+  manage_default_branch_repository_rulesets = var.manage_default_branch_repository_rulesets
+  default_branch_ruleset                    = var.default_branch_ruleset
+}
+
+output "repository_names" {
+  description = "Names of repositories managed by Terraform."
+  value       = module.repos.repository_names
+}
+
+output "ruleset_ids" {
+  description = "GitHub ruleset IDs keyed by repository name."
+  value       = module.repos.ruleset_ids
 }

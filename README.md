@@ -12,19 +12,15 @@ Repository creation and destructive retirement are intentionally out of scope.
 envs/
 └── dceoy/
     ├── .terraform.lock.hcl
-    ├── main.tf
+    ├── env.tf
     ├── moved.tf
-    ├── outputs.tf
-    ├── provider.tf
-    ├── repos.tfvars.json
-    ├── variables.tf
-    └── version.tf
+    └── repos.tfvars.json
 modules/
 ├── org/   # Independent organization-governance root
 └── repos/ # Reusable repository module (no provider or environment-specific state moves)
 ```
 
-`envs/dceoy` is the HCP Terraform **root module** for repository management. It invokes reusable `modules/repos`, configures GitHub authentication, and owns environment-specific Terraform state moves. The organization-governance root remains `modules/org` in a separate Terraform workspace.
+`envs/dceoy` is the HCP Terraform **root module** for repository management. Its `env.tf` declares the provider, inputs, outputs, and `module "repos"` call into reusable `modules/repos`. The separate `moved.tf` contains environment-specific Terraform state migrations and remains separate so inventory synchronization can append moves without editing the root configuration. The organization-governance root remains `modules/org` in a separate Terraform workspace.
 
 ## HCP Terraform
 
