@@ -3,6 +3,7 @@ variable "github_owner" {
   type        = string
 }
 
+# tflint-ignore: terraform_unused_declarations # Retained for compatibility; the calling root owns provider authentication.
 variable "github_app_id" {
   description = "GitHub App ID used for provider authentication. Leave unset to use GITHUB_TOKEN or the provider's normal token/CLI authentication instead."
   type        = string
@@ -27,12 +28,14 @@ variable "github_app_id" {
   }
 }
 
+# tflint-ignore: terraform_unused_declarations # Retained for compatibility; the calling root owns provider authentication.
 variable "github_app_installation_id" {
   description = "GitHub App installation ID used for provider authentication. Leave unset to use GITHUB_TOKEN or the provider's normal token/CLI authentication instead."
   type        = string
   default     = null
 }
 
+# tflint-ignore: terraform_unused_declarations # Retained for compatibility; the calling root owns provider authentication.
 variable "github_app_pem_file" {
   description = "GitHub App private key (PEM contents) used for provider authentication. Leave unset to use GITHUB_TOKEN or the provider's normal token/CLI authentication instead."
   type        = string
