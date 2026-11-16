@@ -408,9 +408,11 @@ JSON
   mkdir -p "${BATS_TEST_TMPDIR}/bin"
   cat > "${BATS_TEST_TMPDIR}/bin/mv" << 'EOF'
 #!/usr/bin/env bash
-if [[ "$2" == "$FAIL_INVENTORY_PATH" ]]; then
-  exit 1
-fi
+for argument in "$@"; do
+  if [[ "$argument" == "$FAIL_INVENTORY_PATH" ]]; then
+    exit 1
+  fi
+done
 exec /usr/bin/mv "$@"
 EOF
   chmod +x "${BATS_TEST_TMPDIR}/bin/mv"
