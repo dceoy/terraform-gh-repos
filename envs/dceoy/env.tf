@@ -14,40 +14,34 @@ variable "github_owner" {
 }
 
 variable "github_app_id" {
-  description = "GitHub App ID used for provider authentication. Leave unset to use GITHUB_TOKEN or the provider's normal token/CLI authentication instead."
+  description = "GitHub App ID required for repository provider authentication."
   type        = string
-  default     = null
+  nullable    = false
   validation {
-    condition = (
-      (
-        var.github_app_id == null
-        && var.github_app_installation_id == null
-        && var.github_app_pem_file == null
-      )
-      || (
-        var.github_app_id != null
-        && length(trimspace(var.github_app_id)) > 0
-        && var.github_app_installation_id != null
-        && length(trimspace(var.github_app_installation_id)) > 0
-        && var.github_app_pem_file != null
-        && length(trimspace(var.github_app_pem_file)) > 0
-      )
-    )
-    error_message = "github_app_id, github_app_installation_id, and github_app_pem_file must be set together with non-empty values, or all be unset."
+    condition     = length(trimspace(var.github_app_id)) > 0
+    error_message = "github_app_id must be non-empty."
   }
 }
 
 variable "github_app_installation_id" {
-  description = "GitHub App installation ID used for provider authentication. Leave unset to use GITHUB_TOKEN or the provider's normal token/CLI authentication instead."
+  description = "GitHub App installation ID required for repository provider authentication."
   type        = string
-  default     = null
+  nullable    = false
+  validation {
+    condition     = length(trimspace(var.github_app_installation_id)) > 0
+    error_message = "github_app_installation_id must be non-empty."
+  }
 }
 
 variable "github_app_pem_file" {
-  description = "GitHub App private key (PEM contents) used for provider authentication. Leave unset to use GITHUB_TOKEN or the provider's normal token/CLI authentication instead."
+  description = "GitHub App private key (PEM contents) required for repository provider authentication."
   type        = string
-  default     = null
+  nullable    = false
   sensitive   = true
+  validation {
+    condition     = length(trimspace(var.github_app_pem_file)) > 0
+    error_message = "github_app_pem_file must be non-empty."
+  }
 }
 
 variable "repositories" {
@@ -74,17 +68,11 @@ variable "default_branch_ruleset" {
 
 provider "github" {
   owner = var.github_owner
-  dynamic "app_auth" {
-    for_each = (
-      var.github_app_id != null
-      && var.github_app_installation_id != null
-      && var.github_app_pem_file != null
-    ) ? [1] : []
-    content {
-      id              = var.github_app_id
-      installation_id = var.github_app_installation_id
-      pem_file        = var.github_app_pem_file
-    }
+
+  app_auth {
+    id              = var.github_app_id
+    installation_id = var.github_app_installation_id
+    pem_file        = var.github_app_pem_file
   }
 }
 
