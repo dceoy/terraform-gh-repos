@@ -78,7 +78,6 @@ provider "github" {
 
 module "repos" {
   source = "../../modules/repos"
-
   github_owner = var.github_owner
   repositories = var.repositories
 }
