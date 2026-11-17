@@ -60,18 +60,6 @@ variable "repositories" {
   }
 }
 
-variable "manage_default_branch_repository_rulesets" {
-  description = "Whether repository-level default branch rulesets are managed."
-  type        = bool
-  default     = true
-}
-
-variable "default_branch_ruleset" {
-  description = "Default branch ruleset configuration forwarded to the module."
-  type        = any
-  default     = {}
-}
-
 provider "github" {
   owner = var.github_owner
   dynamic "app_auth" {
@@ -91,10 +79,8 @@ provider "github" {
 module "repos" {
   source = "../../modules/repos"
 
-  github_owner                              = var.github_owner
-  repositories                              = var.repositories
-  manage_default_branch_repository_rulesets = var.manage_default_branch_repository_rulesets
-  default_branch_ruleset                    = var.default_branch_ruleset
+  github_owner = var.github_owner
+  repositories = var.repositories
 }
 
 output "repository_names" {

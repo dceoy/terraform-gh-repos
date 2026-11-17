@@ -132,13 +132,13 @@ The locked GitHub provider 6.13.0 does not reliably serialize `sha_pinning_requi
 
 ### Organization and repository ruleset ownership
 
-`modules/repos` owns repository-level `default-branch-protection` rulesets by default. Repository ruleset policy is configured through the `default_branch_ruleset` variable. When the organization workspace owns the shared policy, set the repository workspace variable `manage_default_branch_repository_rulesets` to `false`. Do not manage the same protection policy at both scopes.
+`modules/repos` owns repository-level `default-branch-protection` rulesets by default. The `envs/dceoy` root relies on the module defaults for `default_branch_ruleset` and `manage_default_branch_repository_rulesets` rather than exposing unused root variables. To override these defaults, add the appropriate arguments to `module "repos"` in `envs/dceoy/env.tf`. Do not manage the same protection policy at both scopes.
 
 Transfer ownership in stages:
 
 1. For a new organization ruleset, omit `ruleset_id`, set `enforcement` to `disabled`, and apply `modules/org`. For an existing ruleset, provide `ruleset_id`, set the policy fields to the intended values, and verify that it is the dedicated default-branch ruleset before applying.
 2. Set the organization ruleset to `active` and apply `modules/org` while the old repository rulesets remain active. Verify that the organization ruleset targets the intended repositories and is effective.
-3. Set `manage_default_branch_repository_rulesets` to `false` and apply the repository-management workspace; the child module's `destroy = false` lifecycle forgets repository ruleset state without deleting the remote rulesets.
+3. Add `manage_default_branch_repository_rulesets = false` to `module "repos"` in `envs/dceoy/env.tf` and apply the repository-management workspace; the child module's `destroy = false` lifecycle forgets repository ruleset state without deleting the remote rulesets.
 4. Deliberately remove the old repository rulesets only after active organization protection has been verified.
 
 For rollback, restore repository-level ownership and protection before disabling or removing the organization ruleset. By default, organization rulesets target `~ALL` repositories and `~DEFAULT_BRANCH`, prevent deletion and force pushes, require pull requests and resolved review threads, and require zero approvals; each of those policy values is configurable.
@@ -192,6 +192,6 @@ Terraform manages repository feature, merge, security, Actions, and branch-rules
 
 Descriptions, website URLs, topics, visibility, and archive state are intentionally left unmanaged. Settings unavailable for private repositories on GitHub Free are preserved from GitHub rather than reconciled.
 
-For public repositories, the default policy enables supported security features and applies the `default-branch-protection` ruleset. The default ruleset prevents deletion and force pushes, requires pull requests and resolved review threads, permits merge/squash/rebase, and requires zero approvals. These security and ruleset defaults can be overridden through `repositories.*.security_and_analysis` and `default_branch_ruleset` respectively.
+For public repositories, the default policy enables supported security features and applies the `default-branch-protection` ruleset. The default ruleset prevents deletion and force pushes, requires pull requests and resolved review threads, permits merge/squash/rebase, and requires zero approvals. Security defaults can be overridden through `repositories.*.security_and_analysis` in the inventory. To override ruleset defaults, set `default_branch_ruleset` on the `module "repos"` call in `envs/dceoy/env.tf`.
 
 Review the HCP Terraform plan before the first apply to confirm adoption of existing repository settings.
